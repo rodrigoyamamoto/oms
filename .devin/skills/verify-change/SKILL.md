@@ -32,6 +32,7 @@ Execute the standard OMS verification procedure for current repository changes.
    - **Automated Tests**:
      - If test projects exist in `Oms.slnx`, run `dotnet test Oms.slnx -c Release --no-build`.
      - If no test projects exist yet, explicitly mark tests as **Not Applicable (no test projects in solution)**.
+     - When tests are present, distinguish unit tests, architecture tests, and real-infrastructure integration tests, and summarise which business behaviours/invariants they protect as well as any important failure cases left untested.
 
 4. **Validate Documentation & Configuration Consistency**
    - When documentation or configuration files are modified, verify that all internal Markdown file links resolve to existing files and that XML files (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`) are well-formed.

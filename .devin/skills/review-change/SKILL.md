@@ -37,7 +37,8 @@ Evaluate the changes across all seven required dimensions:
 
 5. **Test Adequacy**
    - Are testing expectations and verification procedures realistic for the current project state?
-   - If application code exists, are appropriate unit and integration tests present?
+   - If application code exists, do tests protect meaningful business behaviour, domain invariants, high-risk failure modes (transactional atomicity, concurrency, idempotency, Outbox/Inbox), and single-assembly architectural boundaries rather than superficial coverage targets or over-mocked implementation details?
+   - Are unit tests, architecture tests, and real-infrastructure integration tests (Testcontainers) clearly distinguished without false confidence, and are untested failure scenarios explicitly disclosed?
 
 6. **Unnecessary Complexity**
    - Have any speculative abstractions, unrequested NuGet packages, extra projects, or unnecessary agent profiles been introduced?
