@@ -6,33 +6,34 @@ OMS is an educational Order Management System designed to develop and demonstrat
 
 > **Current Implementation Status**:
 > - **Implemented**: Repository engineering baseline (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`), documentation, and Devin AI agent workflow.
-> - **Planned (Not Yet Implemented)**: All four deployable services (`Orders`, `Inventory`, `Payments`, `Notifications`), `.csproj` assemblies, PostgreSQL databases, RabbitMQ messaging topology, Papercut SMTP integration, Docker Compose orchestration, and the React frontend described below are **architectural designs and proposals**. No application code or infrastructure exists yet.
+> - **Planned (Not Yet Implemented)**: All four deployable services (`Orders`, `Inventory`, `Payments`, `Notifications`), `.csproj` assemblies, PostgreSQL databases, RabbitMQ messaging topology, Papercut SMTP integration, Docker Compose orchestration, and the React frontend described below represent the **approved target architecture**. No application code or infrastructure exists yet.
 
 ---
 
-## 2. Confirmed Architectural Baseline ([ADR-0001](adr/0001-independent-service-boundaries.md))
+## 2. Approved Architectural Baseline ([ADR-0001](adr/0001-independent-service-boundaries.md))
 
-The following foundational decisions have been approved by the human engineer and recorded in [ADR-0001](adr/0001-independent-service-boundaries.md):
+The following architectural decisions have been approved by the human engineer and recorded in [ADR-0001](adr/0001-independent-service-boundaries.md):
 
 1. **Four Independently Deployable Services**:
-   - **Orders** — ASP.NET Core Web API
-   - **Inventory** — ASP.NET Core Web API
-   - **Payments** — ASP.NET Core Web API (using simulated payment processing)
-   - **Notifications** — .NET Background Worker (sending emails via `MailKit` and `Papercut SMTP`)
+   - **Orders (`Oms.Orders.Api`)** — ASP.NET Core Web API
+   - **Inventory (`Oms.Inventory.Api`)** — ASP.NET Core Web API
+   - **Payments (`Oms.Payments.Api`)** — ASP.NET Core Web API (using simulated payment processing)
+   - **Notifications (`Oms.Notifications.Worker`)** — .NET Background Worker (sending emails via `MailKit` and `Papercut SMTP`)
 2. **Incremental Implementation**: Services are built, tested, and verified one service at a time.
 3. **Strict Service Boundaries & Data Ownership**:
    - No shared domain entities across services.
    - No cross-service database relationships, foreign keys, or shared tables.
    - Independent logical PostgreSQL databases per service (`orders_db`, `inventory_db`, `payments_db`, and `notifications_db` where persistent state is required).
    - During local development, a single PostgreSQL container may host these isolated databases.
-4. **Technology & Pattern Constraints**:
-   - .NET 10 / C# 14, Entity Framework Core, PostgreSQL, MediatR for in-process CQRS, `RabbitMQ.Client` for asynchronous messaging, `Microsoft.Extensions.Http.Resilience` for HTTP resilience, OpenTelemetry, xUnit + Testcontainers, Docker & Docker Compose (and Redis / Kubernetes in later stages).
-   - Transactional Outbox, Inbox, idempotency, and explicit failure handling wherever reliable distributed messaging requires them.
-   - Pragmatic Clean Architecture and DDD without speculative abstractions.
-5. **Explicit Exclusions**:
-   - **.NET Aspire** (container orchestration and OpenTelemetry wiring are configured explicitly).
-   - **MassTransit** (messaging, topology, Outbox/Inbox, and retries are implemented directly with `RabbitMQ.Client`).
-   - **Direct Polly API usage** (resilience pipelines are configured through `Microsoft.Extensions.Http.Resilience`).
+4. **Single Deployable Assembly per Service with Logical Layers (Option B)**:
+   - Each service is a single deployable project with internal Clean Architecture layers (`Domain`, `Application`, `Infrastructure`, `Api` / `Worker`) enforced by namespace boundaries, `internal` visibility, and automated architecture tests in `*.UnitTests`.
+5. **Orders-Mediated Process Coordination (Option 1)**:
+   - `Orders` coordinates the order fulfilment lifecycle by issuing asynchronous integration commands (`ReserveStock`, `RequestPayment`, `CommitStock`, `ReleaseStock`), reacting to integration events (`StockReserved`, `StockReservationFailed`, `PaymentSucceeded`, `PaymentFailed`), and publishing order lifecycle integration events (`OrderPlaced`, `OrderConfirmed`, `OrderCancelled`).
+6. **Zero Shared Projects Initially**:
+   - Service 1 (`Orders`) starts with zero shared `.csproj` libraries. Integration message contract packaging will be reconsidered when `Inventory` is introduced.
+7. **Technology Constraints & Explicit Exclusions**:
+   - .NET 10 / C# 14, Entity Framework Core, PostgreSQL, MediatR for in-process CQRS, `RabbitMQ.Client` for asynchronous messaging, `Microsoft.Extensions.Http.Resilience` for outgoing `.NET HttpClient` resilience, OpenTelemetry, xUnit + Testcontainers, Docker & Docker Compose (and Redis / Kubernetes in later stages).
+   - **Explicitly Excluded**: **.NET Aspire**, **MassTransit**, and **direct Polly API usage**.
 
 ---
 
@@ -45,10 +46,10 @@ flowchart TB
     end
 
     subgraph Services["Independently Deployable .NET 10 Services (Planned)"]
-        Orders["Orders API<br/>(ASP.NET Core)"]
-        Inventory["Inventory API<br/>(ASP.NET Core)"]
-        Payments["Payments API<br/>(ASP.NET Core — Simulated Gateway)"]
-        Notifications["Notifications Worker<br/>(.NET BackgroundService)"]
+        Orders["Orders API<br/>(Oms.Orders.Api)"]
+        Inventory["Inventory API<br/>(Oms.Inventory.Api)"]
+        Payments["Payments API<br/>(Oms.Payments.Api — Simulated Gateway)"]
+        Notifications["Notifications Worker<br/>(Oms.Notifications.Worker)"]
     end
 
     subgraph Data["Isolated PostgreSQL Databases (Planned — Single Local Container)"]
@@ -63,7 +64,7 @@ flowchart TB
         Papercut[["Papercut SMTP<br/>(Local Email Sink)"]]
     end
 
-    UI -- "Sync HTTP/JSON<br/>(Commands & Queries)" --> Orders
+    UI -- "Sync HTTP/JSON<br/>(Place Order / Query Status)" --> Orders
     UI -- "Sync HTTP/JSON<br/>(Stock Queries / Admin)" --> Inventory
     UI -- "Sync HTTP/JSON<br/>(Payment Queries)" --> Payments
 
@@ -72,24 +73,24 @@ flowchart TB
     Payments --> PaymentsDb
     Notifications --> NotificationsDb
 
-    Orders <-- "Async AMQP (RabbitMQ.Client)<br/>Integration Events & Commands" --> RabbitMQ
-    Inventory <-- "Async AMQP (RabbitMQ.Client)<br/>Integration Events" --> RabbitMQ
-    Payments <-- "Async AMQP (RabbitMQ.Client)<br/>Integration Events" --> RabbitMQ
-    RabbitMQ -- "Async AMQP (RabbitMQ.Client)<br/>Order Lifecycle Events" --> Notifications
+    Orders <-->|"Async AMQP (RabbitMQ.Client)<br/>Integration Commands & Events"| RabbitMQ
+    Inventory <-->|"Async AMQP (RabbitMQ.Client)<br/>Commands In / Events Out"| RabbitMQ
+    Payments <-->|"Async AMQP (RabbitMQ.Client)<br/>Commands In / Events Out"| RabbitMQ
+    RabbitMQ -->|"Async AMQP (RabbitMQ.Client)<br/>Order Lifecycle Events"| Notifications
 
-    Notifications -- "SMTP (MailKit)" --> Papercut
+    Notifications -->|"SMTP (MailKit)"| Papercut
 ```
 
 ---
 
 ## 4. Service Boundary Definitions
 
-### 4.1 Orders Service (`Oms.Orders.*`) — ASP.NET Core API
+### 4.1 Orders Service (`Oms.Orders.Api`) — ASP.NET Core API
 
 - **Primary Responsibilities**:
   - Accept and validate customer order placement requests (`POST /api/orders`) and expose order status queries (`GET /api/orders/{id}`).
-  - Own the `Order` lifecycle state machine (`Pending` -> `AwaitingPayment` -> `Confirmed`, or `Cancelled` / `Failed`).
-  - Coordinate the order fulfilment workflow by publishing order lifecycle integration events and reacting to inventory and payment outcome events.
+  - Own the `Order` lifecycle state machine (`Pending -> AwaitingStock -> AwaitingPayment -> Confirmed`, or `Cancelled` / `Failed`).
+  - Act as the **process coordinator** for order fulfilment: send integration commands (`ReserveStock`, `RequestPayment`, `CommitStock`, `ReleaseStock`) and react to inventory and payment outcome events.
 - **Explicitly Excluded Responsibilities**:
   - Tracking warehouse stock levels or managing inventory reservations directly.
   - Executing payment authorisations or storing payment gateway audit logs.
@@ -97,65 +98,72 @@ flowchart TB
 - **Data Ownership (`orders_db`)**:
   - `orders` and `order_items` tables, plus `outbox_messages` and `inbox_messages` tables.
 - **Minimal Anticipated Domain Model**:
-  - `Order` (Aggregate Root): `Id`, `CustomerId`, `CustomerEmail`, `Status`, `TotalAmount`, `FailureReason`, `CreatedAtUtc`, `RowVersion` (optimistic concurrency), and a `1..N` collection of `OrderItem`.
+  - `Order` (Aggregate Root): `Id`, `CustomerId`, `CustomerEmail`, `Status`, `TotalAmount`, `Currency`, `FailureReason`, `CreatedAtUtc`, `RowVersion` (optimistic concurrency), and a `1..N` collection of `OrderItem`.
   - `OrderItem` (Child Entity within `Order` aggregate): `Id`, `OrderId`, `ProductSku`, `Quantity`, `UnitPrice` (snapshotted at order creation).
 - **Expected External Dependencies**:
   - PostgreSQL (`orders_db` via EF Core), RabbitMQ (`RabbitMQ.Client`), OpenTelemetry.
 - **Initial Communication Requirements**:
-  - **Inbound Sync HTTP**: Client endpoints for placing orders (`202 Accepted` or `201 Created` with initial `Pending` status) and querying order state.
-  - **Outbound Async RabbitMQ**: Publishes `OrderPlaced`, `OrderConfirmed`, and `OrderCancelled` integration events via its Transactional Outbox.
-  - **Inbound Async RabbitMQ**: Consumes `StockReserved`, `StockReservationFailed`, `PaymentSucceeded`, and `PaymentFailed` events via its idempotent Inbox.
+  - **Inbound Sync HTTP**: Client endpoints for placing orders (`202 Accepted` or `201 Created` with initial `AwaitingStock` / `Pending` status) and querying order state.
+  - **Outbound Async RabbitMQ (via Outbox)**:
+    - *Integration Commands*: `ReserveStock`, `RequestPayment`, `CommitStock`, `ReleaseStock`.
+    - *Integration Events*: `OrderPlaced`, `OrderConfirmed`, `OrderCancelled`.
+  - **Inbound Async RabbitMQ (via Inbox)**:
+    - *Integration Events*: `StockReserved`, `StockReservationFailed`, `PaymentSucceeded`, `PaymentFailed`.
 - **Failure & Consistency Considerations**:
-  - Order creation and the initial `OrderPlaced` Outbox message commit atomically in a single `orders_db` transaction.
-  - State transitions on `Order` must be idempotent and guarded against out-of-order or duplicate integration events (for example, ignoring a duplicate `StockReserved` event if the order has already advanced).
+  - Order creation and the initial Outbox messages (`OrderPlaced` / `ReserveStock`) commit atomically in a single `orders_db` transaction.
+  - State transitions on `Order` are idempotent and guarded against duplicate or out-of-order messages (for example, ignoring a duplicate `StockReserved` event if the order has already advanced to `AwaitingPayment`).
 
-### 4.2 Inventory Service (`Oms.Inventory.*`) — ASP.NET Core API
+### 4.2 Inventory Service (`Oms.Inventory.Api`) — ASP.NET Core API
 
 - **Primary Responsibilities**:
   - Maintain authoritative stock quantities for products (`StockItem`).
-  - Reserve stock for placed orders, release reservations when orders are cancelled or payments fail, and commit reservations when orders are confirmed.
+  - Reserve stock when instructed by `ReserveStock`, commit reservations on `CommitStock`, and release reservations on `ReleaseStock`.
   - Expose HTTP endpoints for querying stock availability and seeding/adjusting stock in development/testing.
 - **Explicitly Excluded Responsibilities**:
-  - Knowing customer details, order pricing, payment status, or email notifications.
+  - Knowing customer identity, order monetary totals, payment status, or email notifications.
 - **Data Ownership (`inventory_db`)**:
   - `stock_items` and `stock_reservations` tables, plus `outbox_messages` and `inbox_messages` tables.
 - **Minimal Anticipated Domain Model**:
-  - `StockItem` (Aggregate Root): `Id`, `ProductSku` (unique), `QuantityAvailable`, `QuantityReserved`, `RowVersion` (optimistic concurrency). Enforces the invariant `QuantityAvailable >= 0`.
-  - `StockReservation` (Child Entity, `1..N` from `StockItem` or keyed by `OrderId`): `Id`, `StockItemId`, `OrderId`, `Quantity`, `Status` (`Reserved`, `Committed`, `Released`), `CreatedAtUtc`.
+  - `StockItem` (Aggregate Root): `Id`, `ProductSku` (unique), `QuantityAvailable`, `QuantityReserved`, `RowVersion` (optimistic concurrency). Enforces the invariant `QuantityAvailable >= 0` and `QuantityReserved >= 0`.
+  - `StockReservation` (Child Entity, `1..N` from `StockItem`): `Id`, `StockItemId`, `OrderId`, `Quantity`, `Status` (`Reserved`, `Committed`, `Released`), `CreatedAtUtc`.
 - **Expected External Dependencies**:
   - PostgreSQL (`inventory_db` via EF Core), RabbitMQ (`RabbitMQ.Client`), OpenTelemetry (and Redis in a later caching stage).
 - **Initial Communication Requirements**:
   - **Inbound Sync HTTP**: Read/admin endpoints (`GET /api/stock/{sku}`, `POST /api/stock`) for inspection and test setup.
-  - **Inbound Async RabbitMQ**: Consumes `OrderPlaced` (to reserve stock), `OrderCancelled` (to release reserved stock if held), and `OrderConfirmed` (to commit the reservation).
-  - **Outbound Async RabbitMQ**: Publishes `StockReserved`, `StockReservationFailed`, and `StockReleased` via its Transactional Outbox.
+  - **Inbound Async RabbitMQ (via Inbox)**:
+    - *Integration Commands*: `ReserveStock`, `CommitStock`, `ReleaseStock`.
+  - **Outbound Async RabbitMQ (via Outbox)**:
+    - *Integration Events*: `StockReserved`, `StockReservationFailed`, `StockReservationCommitted`, `StockReleased`.
 - **Failure & Consistency Considerations**:
-  - Concurrent reservations for the same SKU must be protected by optimistic concurrency (`xmin` / row version) and database `CHECK` constraints (`quantity_available >= 0` and `quantity_reserved >= 0`) so overselling is impossible under race conditions.
-  - Reservation handling is idempotent by `(OrderId, ProductSku)`: reprocessing `OrderPlaced` for an order that already holds an active reservation yields the existing outcome without double-deducting stock.
+  - Concurrent reservations for the same SKU are protected by optimistic concurrency (`xmin` / row version) and database `CHECK` constraints (`quantity_available >= 0` and `quantity_reserved >= 0`) so overselling is impossible under race conditions.
+  - Reservation handling is idempotent by `(OrderId, ProductSku)`: reprocessing `ReserveStock` for an order that already holds an active reservation republishes/returns the existing outcome without double-deducting stock.
 
-### 4.3 Payments Service (`Oms.Payments.*`) — ASP.NET Core API
+### 4.3 Payments Service (`Oms.Payments.Api`) — ASP.NET Core API
 
 - **Primary Responsibilities**:
-  - Execute simulated payment authorisation/capture for orders once stock is reserved.
+  - Execute simulated payment authorisation/capture when instructed by `RequestPayment`.
   - Record an immutable audit trail of every payment attempt (`PaymentAttempt`).
   - Expose read-only HTTP endpoints to inspect payment status by `OrderId` or `PaymentId`.
 - **Explicitly Excluded Responsibilities**:
-  - Managing order line items, reserving stock, or sending emails.
+  - Managing order line items, reserving warehouse stock, or sending emails.
 - **Data Ownership (`payments_db`)**:
   - `payments` and `payment_attempts` tables, plus `outbox_messages` and `inbox_messages` tables.
 - **Minimal Anticipated Domain Model**:
   - `Payment` (Aggregate Root): `Id`, `OrderId` (unique idempotency key per order), `Amount`, `Currency`, `Status` (`Pending`, `Succeeded`, `Failed`, `Refunded`), `CreatedAtUtc`, `RowVersion`, and a `1..N` collection of `PaymentAttempt`.
   - `PaymentAttempt` (Child Entity within `Payment` aggregate): `Id`, `PaymentId`, `AttemptNumber`, `Status` (`Succeeded`, `Declined`, `GatewayError`), `FailureReason`, `AttemptedAtUtc`.
 - **Expected External Dependencies**:
-  - PostgreSQL (`payments_db` via EF Core), RabbitMQ (`RabbitMQ.Client`), deterministic/configurable in-process simulated payment gateway, OpenTelemetry.
+  - PostgreSQL (`payments_db` via EF Core), RabbitMQ (`RabbitMQ.Client`), deterministic/configurable simulated payment gateway, OpenTelemetry.
 - **Initial Communication Requirements**:
   - **Inbound Sync HTTP**: Read endpoints (`GET /api/payments/order/{orderId}`) for status inspection.
-  - **Inbound Async RabbitMQ**: Consumes `StockReserved` (or a payment request event carrying `OrderId` and `Amount`) to trigger payment processing.
-  - **Outbound Async RabbitMQ**: Publishes `PaymentSucceeded` or `PaymentFailed` via its Transactional Outbox.
+  - **Inbound Async RabbitMQ (via Inbox)**:
+    - *Integration Command*: `RequestPayment` (`OrderId`, `Amount`, `Currency`).
+  - **Outbound Async RabbitMQ (via Outbox)**:
+    - *Integration Events*: `PaymentSucceeded`, `PaymentFailed`.
 - **Failure & Consistency Considerations**:
-  - **Strict Idempotency on `OrderId`**: If a message is redelivered after a payment has already succeeded, `Payments` must not charge the customer twice; the Inbox and unique constraint on `OrderId` ensure duplicate messages are safely acknowledged.
-  - Transient simulated gateway timeouts are recorded as `PaymentAttempt` entries before retrying, whereas deterministic declines (e.g. insufficient funds) immediately transition `Payment` to `Failed` and emit `PaymentFailed`.
+  - **Strict Idempotency on `OrderId`**: If `RequestPayment` is redelivered after a payment has already succeeded, `Payments` must not charge the customer twice; the Inbox and unique constraint on `OrderId` ensure duplicate messages are safely acknowledged.
+  - Transient simulated gateway errors are recorded as `PaymentAttempt` entries before retrying, whereas deterministic declines (e.g. insufficient funds) immediately transition `Payment` to `Failed` and emit `PaymentFailed`.
 
-### 4.4 Notifications Service (`Oms.Notifications.*`) — Background Worker
+### 4.4 Notifications Service (`Oms.Notifications.Worker`) — Background Worker
 
 - **Primary Responsibilities**:
   - Consume terminal order lifecycle integration events (`OrderConfirmed`, `OrderCancelled`) from RabbitMQ.
@@ -169,60 +177,42 @@ flowchart TB
 - **Expected External Dependencies**:
   - RabbitMQ (`RabbitMQ.Client`), Papercut SMTP (`MailKit`), PostgreSQL (`notifications_db` for Inbox deduplication), OpenTelemetry.
 - **Initial Communication Requirements**:
-  - **Inbound Async RabbitMQ**: Consumes `OrderConfirmed` and `OrderCancelled`.
+  - **Inbound Async RabbitMQ (via Inbox)**:
+    - *Integration Events*: `OrderConfirmed`, `OrderCancelled`.
   - **Outbound SMTP**: Sends email over SMTP to Papercut SMTP.
 - **Failure & Consistency Considerations**:
   - SMTP delivery cannot participate in a PostgreSQL transaction. The worker checks `notifications_db` first, sends the email via `MailKit`, and then records the message as processed. If the process crashes in the narrow window after SMTP acceptance but before database commit, a retry may send a duplicate email—an inherent trade-off of at-least-once delivery over external SMTP that is explicitly accepted and minimised.
 
 ---
 
-## 5. Physical Solution Structure (Options & Recommendation)
+## 5. Physical Solution Structure (Approved Option B)
 
-> **Status**: **Proposed Recommendation** (awaiting human engineer approval before any `.csproj` files are created).
+> **Status**: **Accepted** ([ADR-0001](adr/0001-independent-service-boundaries.md)). Projects will be created incrementally one service at a time starting in Task 003.
 
-### Evaluation Context
+### Architectural Rationale
 
-Each service in OMS is an independent runtime, but internal code organisation within each service must balance Clean Architecture separation against project sprawl and our strict build baseline (`<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` and `<GenerateDocumentationFile>true</GenerateDocumentationFile>` **without** `CS1591` suppression).
+Each service in OMS is an independent runtime. Internal code organisation within each service balances Clean Architecture separation against project sprawl and our strict build baseline (`<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` and `<GenerateDocumentationFile>true</GenerateDocumentationFile>` **without** `CS1591` suppression).
 
 In .NET, every `public` or `protected` type across assembly boundaries requires XML documentation comments (`///`) or fails compilation with `CS1591`. Conversely, `internal` types within an assembly do not trigger `CS1591`.
 
-### Option A: Four Projects per Service (Classic Multi-Assembly Clean Architecture)
-
-Each DDD service (`Orders`, `Inventory`, `Payments`) is split into four physical class libraries/executables:
-- `Oms.<Service>.Domain`
-- `Oms.<Service>.Application`
-- `Oms.<Service>.Infrastructure`
-- `Oms.<Service>.Api`
-- Plus `Oms.<Service>.UnitTests` and `Oms.<Service>.IntegrationTests`.
-
-### Option B (Recommended): Pragmatic Single-Assembly Service with Enforced Layer Namespaces
-
-Each service uses a single deployable project (`Oms.Orders.Api`, `Oms.Inventory.Api`, `Oms.Payments.Api`, and `Oms.Notifications.Worker`) with Clean Architecture layers enforced via folders and namespaces (`Domain`, `Application`, `Infrastructure`, `Api`), `internal` visibility, and automated architecture tests (e.g. NetArchTest in `*.UnitTests`), accompanied by `Oms.<Service>.UnitTests` and `Oms.<Service>.IntegrationTests`.
-
-*(Note: A 2-assembly hybrid variant—extracting only `Oms.<Service>.Domain` while keeping `Application`, `Infrastructure`, and `Api` in `Oms.<Service>.Api`—remains a straightforward future evolution if a service's domain model grows substantially.)*
-
-### Detailed Comparison
-
-| Criterion | Option A: 4 Assemblies per Service (`Domain`, `Application`, `Infrastructure`, `Api`) | Option B (Recommended): Pragmatic Few-Assembly Structure (`Oms.<Service>.Api` with Enforced Layer Namespaces + `Oms.Notifications.Worker`) |
+| Criterion | Option A (Rejected): 4 Assemblies per Service (`Domain`, `Application`, `Infrastructure`, `Api`) | Option B (Approved): Single Deployable Assembly per Service with Enforced Layer Namespaces |
 | :--- | :--- | :--- |
-| **Compile-Time Dependency Enforcement** | **Strongest via MSBuild**: `Domain.csproj` physically cannot reference EF Core, MediatR, or `RabbitMQ.Client`. | **Enforced via Architecture Tests**: All NuGet packages in the service project are visible to the compiler, so layer rules (`Domain` must not reference `Infrastructure` or EF Core) are enforced via fast unit/architecture tests in `*.UnitTests`. |
+| **Compile-Time Dependency Enforcement** | **MSBuild Project References**: `Domain.csproj` physically cannot reference EF Core, MediatR, or `RabbitMQ.Client`. | **Automated Architecture Tests**: Layer rules (`Domain` must not reference `Infrastructure`, EF Core, or `RabbitMQ.Client`) are enforced via fast architecture tests in `*.UnitTests`. |
 | **Testability** | High, though requires making internal application/infrastructure types `public` across assembly boundaries. | High: `InternalsVisibleTo` grants `Oms.<Service>.UnitTests` and `Oms.<Service>.IntegrationTests` full access to `internal` domain and application types. |
 | **Maintainability & `CS1591` Impact** | **High Friction**: Because types crossing assembly boundaries must be `public`, every entity, repository interface, command, handler, and DTO must carry `///` XML comments to satisfy `CS1591` under `TreatWarningsAsErrors=true`. | **High Maintainability**: Domain entities, value objects, MediatR handlers, EF Core configurations, and Outbox/Inbox classes remain `internal`. Only genuine public API contracts require XML documentation. |
 | **Build & Solution Complexity** | **Heavy**: 4 services x 4 layers + 8 test projects = **24 `.csproj` files** for a small educational system. | **Minimal & Fast**: 4 deployable service projects + 2 test projects per service = **12 `.csproj` files** total at full completion (and only **3 `.csproj` files** when building the first service). |
 | **Educational Value** | Demonstrates traditional multi-project Clean Architecture diagrams. | Demonstrates senior-level judgement: separating **logical architecture** (Clean Architecture layers) from **physical packaging** (assemblies), encapsulation via `internal`, and automated architecture fitness functions. |
 | **Future Evolution** | Harder to refactor across layers due to rigid project references. | If a service's domain later grows complex enough to warrant its own assembly, extracting `Domain/` into `Oms.<Service>.Domain.csproj` is a straightforward mechanical refactoring because namespace boundaries are already clean. |
 
-### Evaluation of Shared Projects
+### Shared Projects Policy (Approved)
 
-- **No Shared Domain Model (Confirmed Rule)**: Domain entities and value objects are never shared across services.
-- **No `Oms.Common` or `Oms.BuildingBlocks` Project Initially (Recommended)**: Creating a shared infrastructure library for Outbox/Inbox or RabbitMQ before implementing at least two services violates our rule against speculative abstractions and couples independent services at compile time.
-- **Integration Event Contracts (`Oms.Contracts` vs Local Contract Records)**:
-  - Because services are implemented **one service at a time**, Service 1 (`Orders`) does not need a shared `Oms.Contracts` project.
-  - Even when `Inventory` and `Payments` are added, integration events serialised as JSON over RabbitMQ only require matching JSON property schemas and message type names (tolerant reader pattern)—each service can define its own small `internal readonly record struct` contract, or a lightweight dependency-free `Oms.Contracts` project can be evaluated via an ADR once the second service is built. **Recommendation**: Start with **zero shared projects**.
+- **No Shared Domain Model**: Domain entities and value objects are never shared across services.
+- **Zero Shared Projects Initially**: Service 1 (`Orders`) is implemented with zero shared `.csproj` libraries (no `Oms.Common`, `Oms.BuildingBlocks`, or `Oms.Contracts`).
+- **Deferred Contract Packaging Decision**: When the second service (`Inventory`) is introduced, we will evaluate whether to keep small local message contract records per service (tolerant reader pattern) or introduce a dependency-free `Oms.Contracts` project.
 
-### Proposed Physical Solution Tree
+### Approved Target Solution Tree
 
-*(Note: No projects are created in TASK 002. Services will be added incrementally one service at a time starting in future tasks.)*
+*(Note: No `.csproj` projects are created in TASK 002. Services and their test projects will be added incrementally one service at a time.)*
 
 ```text
 Oms.slnx
@@ -280,25 +270,38 @@ Oms.slnx
 
 ## 6. Communication, Consistency, and Failure Strategy
 
-### 6.1 Synchronous HTTP vs Asynchronous Messaging
+### 6.1 Synchronous HTTP vs Asynchronous Messaging & Resilience Scope
 
 - **Synchronous HTTP (Edge Communication)**:
   - Used between external clients (React SPA, API callers, test harnesses) and the ASP.NET Core APIs (`Orders`, `Inventory`, `Payments`) where an immediate response (`200 OK`, `201 Created`, `202 Accepted`, `400 Bad Request`, `404 Not Found`) is required.
-  - Whenever an HTTP call is made (for example, by a client, gateway, or test client, or if a read-only cross-service HTTP check is ever introduced), transient fault handling must use `Microsoft.Extensions.Http.Resilience`.
+- **Scope of `Microsoft.Extensions.Http.Resilience`**:
+  - `Microsoft.Extensions.Http.Resilience` configures resilience pipelines (retries, timeouts, circuit breakers, hedging) on **outgoing HTTP calls made by `.NET HttpClient` instances** (for example, if a .NET service calls an external HTTP payment gateway, webhook, or downstream HTTP endpoint, or in `.NET` integration test/client harnesses).
+  - It does **not** automatically protect incoming ASP.NET Core API requests (which rely on ASP.NET Core server timeouts, rate limiting, and validation) and does **not** run inside the React browser client (which manages its own fetch/HTTP retry semantics).
 - **Asynchronous Messaging via RabbitMQ (Inter-Service Workflow)**:
-  - **Proposed Rule**: Cross-service business workflows (`Orders` <-> `Inventory` <-> `Payments` -> `Notifications`) communicate **exclusively via asynchronous integration events over RabbitMQ** rather than synchronous service-to-service HTTP chains.
+  - Cross-service business workflows (`Orders` <-> `Inventory` <-> `Payments` -> `Notifications`) communicate **asynchronously over RabbitMQ** (`RabbitMQ.Client`) rather than via synchronous service-to-service HTTP chains.
   - **Rationale**: Synchronous HTTP chains across `Orders -> Inventory -> Payments` introduce temporal coupling (all three services must be healthy simultaneously to accept an order), amplify tail latency, and create partial-failure states when a network timeout occurs after a downstream database commit.
 
-### 6.2 Domain Events vs Integration Events
+### 6.2 Domain Events, Integration Events, and Integration Commands
 
-| Characteristic | Domain Events | Integration Events |
-| :--- | :--- | :--- |
-| **Purpose** | Express a side-effect or invariant within a single service's bounded context. | Notify other independent services of a committed business fact. |
-| **Scope & Transport** | In-process only (dispatched via `MediatR` within the same service boundary). | Cross-process over AMQP (`RabbitMQ.Client`) via a topic exchange (e.g. `oms.events`). |
-| **Transaction Boundary** | Handled before or during the owning `DbContext.SaveChangesAsync` transaction. | Serialised as JSON into the service's local `outbox_messages` table in the **same** database transaction as the aggregate state change. |
-| **Payload Design** | Rich internal domain references (`internal` C# records). | Versioned, minimal, self-contained JSON DTO contracts (`MessageId`, `CorrelationId`, `OccurredAtUtc`, primitive identifiers). |
+We distinguish strictly between **in-process domain events** and **cross-service integration messages** (which are further divided into **integration commands** and **integration events**):
 
-### 6.3 Why RabbitMQ and Kafka Are Not Interchangeable (No Broker-Agnostic Abstraction)
+| Message Category | Intent & Naming | Scope & Transport | Ownership & Routing | Examples |
+| :--- | :--- | :--- | :--- | :--- |
+| **Domain Event** | Imperative fact inside a single aggregate/bounded context (past-tense verb). | **In-process only** within the owning service assembly. Never published directly to RabbitMQ. | Owned by the service's `Domain` layer (`internal` C# record). | `OrderCreatedDomainEvent` |
+| **Integration Command** | Asynchronous instruction asking **one specific target service** to perform an action (imperative verb). | Cross-process over AMQP (`RabbitMQ.Client`), persisted via the sender's **Transactional Outbox**. | Routed to a single target service's command queue. | `ReserveStock`, `CommitStock`, `ReleaseStock`, `RequestPayment` |
+| **Integration Event** | Asynchronous notification broadcasting a **committed business fact** to one or more interested services (past-tense verb). | Cross-process over AMQP (`RabbitMQ.Client`) via a topic exchange (e.g. `oms.events`), persisted via the publisher's **Transactional Outbox**. | Published by the service that owns the state change; consumed by any interested subscriber queue. | `OrderPlaced`, `StockReserved`, `StockReservationFailed`, `PaymentSucceeded`, `PaymentFailed`, `OrderConfirmed`, `OrderCancelled` |
+
+### 6.3 Explicit Transaction Boundaries (`MediatR`, EF Core, and the Outbox)
+
+- **`MediatR` Does Not Provide Automatic Transactions**:
+  - `MediatR` is purely an in-process request/notification dispatcher (`ISender` / `IPublisher`). Dispatching a command or domain event through `MediatR` does **not** automatically open, share, or commit a database transaction.
+- **Explicit Unit-of-Work & Atomic Outbox Persistence**:
+  - Every state-mutating application command handler (or a dedicated EF Core transaction pipeline behaviour wrapping the handler) operates within a single local `DbContext` transaction boundary.
+  - If in-process domain events are used, their handlers must execute **before** `DbContext.SaveChangesAsync` (or inside an explicit `Database.BeginTransactionAsync` / `IDbContextTransaction.CommitAsync` scope) so that all aggregate state changes, domain side-effects, and outgoing `OutboxMessage` records are staged on the same `DbContext`.
+  - A single `DbContext.SaveChangesAsync` call (or explicit transaction commit) atomically persists both the **business state mutation** (e.g. inserting `Order` and `OrderItem` rows, or updating `Order.Status`) and the **serialised integration commands/events** in `outbox_messages` (plus any `inbox_messages` deduplication entry when triggered by a message consumer).
+  - If the database transaction rolls back, neither the aggregate state change nor the `OutboxMessage` is persisted, eliminating dual-write inconsistencies by construction.
+
+### 6.4 Why RabbitMQ and Kafka Are Not Interchangeable (No Broker-Agnostic Abstraction)
 
 A common architectural mistake is designing a generic `IMessageBroker` interface that pretends RabbitMQ and Apache Kafka are drop-in replacements:
 
@@ -307,67 +310,61 @@ A common architectural mistake is designing a generic `IMessageBroker` interface
   - **Kafka** is a distributed, partitioned append-only commit log where consumers track sequential partition offsets, messages are retained after consumption for replay, and ordering is guaranteed per partition key rather than via routing topologies and per-message acks.
 - **Pragmatic Approach for OMS**:
   - Do **not** build a speculative "broker-agnostic" framework that hides AMQP semantics.
-  - Application handlers depend on a thin, intention-revealing port (such as an `IOutboxWriter` or `IIntegrationEventPublisher` that appends an integration event to the local EF Core Outbox within the unit of work), while the infrastructure layer implements the Outbox publisher and Inbox consumers directly and transparently against `RabbitMQ.Client` v7+ (`IConnection`, `IChannel`, publisher confirms, `AsyncEventingBasicConsumer`, and explicit DLX configuration).
+  - Application handlers stage integration commands and events into the local EF Core Outbox within the unit of work, while the infrastructure layer implements the Outbox publisher and Inbox consumers directly and transparently against `RabbitMQ.Client` v7+ (`IConnection`, `IChannel`, publisher confirms, `AsyncEventingBasicConsumer`, and explicit DLX configuration).
 
-### 6.4 Transactional Outbox, Inbox, Retries, and Dead-Letter Handling
+### 6.5 Transactional Outbox, Inbox, Retries, and Dead-Letter Handling
 
 1. **Transactional Outbox (Producer Reliability)**:
-   - When an aggregate changes state (e.g. `Order` created or `StockItem` reserved), the command handler writes both the aggregate changes and an `OutboxMessage` row (`Id`, `Type`, `Payload`, `CorrelationId`, `CreatedAtUtc`, `ProcessedAtUtc`) in a single PostgreSQL transaction.
-   - A background worker (`OutboxProcessor`) in the service polls unprocessed `outbox_messages` rows (using `FOR UPDATE SKIP LOCKED`), publishes them to the `oms.events` RabbitMQ topic exchange with publisher confirmations enabled, and marks `ProcessedAtUtc`.
+   - Command and event handlers stage `OutboxMessage` rows (`Id`, `MessageType`, `Payload`, `CorrelationId`, `CreatedAtUtc`, `ProcessedAtUtc`) in the same PostgreSQL transaction as the aggregate changes.
+   - A background worker (`OutboxProcessor`) in the service polls unprocessed `outbox_messages` rows (using `FOR UPDATE SKIP LOCKED`), publishes them to RabbitMQ with publisher confirmations enabled, and records `ProcessedAtUtc`.
 2. **Idempotent Consumers & Transactional Inbox (Consumer Reliability)**:
    - RabbitMQ provides **at-least-once delivery**; any message can be delivered more than once.
-   - When a consumer receives a message (`MessageId`), it begins a local database transaction, checks/inserts `(MessageId, ConsumerName)` in `inbox_messages`, executes the domain/application logic, writes any resulting outgoing `outbox_messages`, commits the transaction, and only then calls `BasicAckAsync`.
+   - When a consumer receives an integration command or event (`MessageId`), it opens a local database transaction, inserts `(MessageId, ConsumerName)` into `inbox_messages`, executes the domain/application logic, stages any resulting outgoing `outbox_messages`, commits the transaction, and only then calls `BasicAckAsync`.
    - If `(MessageId, ConsumerName)` already exists in `inbox_messages`, the consumer immediately acknowledges (`BasicAckAsync`) the duplicate message as a no-op.
 3. **Retry and Dead-Letter Queue (DLQ) Strategy**:
    - **Transient Database / Network Errors**: Retried with exponential backoff inside the consumer or requeued up to a bounded retry count (e.g. 3 attempts).
    - **Poison / Unprocessable Messages**: If a message fails deserialisation, violates an unrecoverable invariant, or exhausts its retry budget, the consumer rejects it without requeueing (`BasicNackAsync(requeue: false)`).
    - **Dead-Letter Exchange (DLX)**: Every service queue is configured with a Dead-Letter Exchange (`oms.dlx`) routing rejected messages to a dedicated `<queue_name>.dlq` for inspection, alerting, and manual replay—preventing infinite poison-message loops.
 
-### 6.5 End-to-End Order Processing Scenario & Process Coordination
+### 6.6 End-to-End Order Processing Scenario (Approved Orders-Mediated Flow)
 
-#### Coordination Strategy: Lightweight State-Driven Coordination via `Order` (No Saga Framework)
+#### Coordination Strategy: Orders-Mediated Process Coordination (Option 1 — Approved)
 
-Rather than introducing a heavyweight Saga framework or distributed two-phase commit (2PC), `Order` naturally acts as a **lightweight stateful coordinator** via its own lifecycle status transitions, while services communicate through integration events:
+Rather than introducing a heavyweight Saga framework or coupling `Inventory` and `Payments` directly to each other's events, the `Order` aggregate in `Orders` acts as the **stateful process coordinator** via its status transitions (`Pending -> AwaitingStock -> AwaitingPayment -> Confirmed`, or `Cancelled` / `Failed`):
 
 #### Happy Path Flow
 
 1. **Place Order (`Orders`)**:
    - Client sends `POST /api/orders` with customer details and line items.
-   - `Orders` creates an `Order` in `Pending` status, writes `OrderPlaced` (`OrderId`, `Items`, `TotalAmount`) to `orders_db.outbox_messages` in the same transaction, and returns `202 Accepted` (or `201 Created`) with the `OrderId`.
-   - `Orders` Outbox publishes `OrderPlaced` to RabbitMQ.
+   - `Orders` creates an `Order` in `AwaitingStock` (or `Pending` -> `AwaitingStock`) status and atomically stages the `ReserveStock` integration command (`OrderId`, `Items`) and `OrderPlaced` integration event in `orders_db.outbox_messages` within the same EF Core transaction, returning `202 Accepted` (or `201 Created`) with the `OrderId`.
+   - `Orders` Outbox publishes `ReserveStock` (and `OrderPlaced`) to RabbitMQ.
 2. **Reserve Stock (`Inventory`)**:
-   - `Inventory` consumes `OrderPlaced`, records the message in `inventory_db.inbox_messages`, verifies `QuantityAvailable >= Quantity` for each requested SKU, creates `StockReservation` records (`Reserved`), deducts available stock, and writes `StockReserved` (`OrderId`) to `inventory_db.outbox_messages` in a single transaction.
+   - `Inventory` consumes the `ReserveStock` command, records the message in `inventory_db.inbox_messages`, verifies `QuantityAvailable >= Quantity` for each requested SKU, creates `StockReservation` records (`Reserved`), deducts available stock, and stages the `StockReserved` integration event (`OrderId`) in `inventory_db.outbox_messages` in a single transaction.
    - `Inventory` Outbox publishes `StockReserved`.
-3. **Record Reservation & Trigger Payment (`Orders` -> `Payments`)**:
-   - `Orders` consumes `StockReserved`, transitions `Order` from `Pending` to `AwaitingPayment` (or `Payments` consumes `StockReserved` directly if pure choreography is chosen—see Open Decisions below; in the recommended flow, `StockReserved` carries `OrderId` and `TotalAmount` or `Orders` emits `OrderStockConfirmed` so `Payments` remains decoupled from `Inventory` internals).
-   - `Payments` creates a `Payment` record (`Pending`), invokes the simulated payment gateway, records a `PaymentAttempt` (`Succeeded`), transitions `Payment` to `Succeeded`, and writes `PaymentSucceeded` (`OrderId`, `PaymentId`) to `payments_db.outbox_messages`.
-4. **Confirm Order & Commit Stock (`Orders`, `Inventory`, `Notifications`)**:
-   - `Orders` consumes `PaymentSucceeded`, transitions `Order` to `Confirmed`, and writes `OrderConfirmed` (`OrderId`, `CustomerEmail`, `TotalAmount`) to `orders_db.outbox_messages`.
-   - `Inventory` consumes `OrderConfirmed` and transitions the corresponding `StockReservation` records from `Reserved` to `Committed`.
+3. **Request & Process Payment (`Orders` -> `Payments`)**:
+   - `Orders` consumes `StockReserved`, transitions `Order` from `AwaitingStock` to `AwaitingPayment`, and stages the `RequestPayment` integration command (`OrderId`, `TotalAmount`, `Currency`) in `orders_db.outbox_messages` in a single transaction.
+   - `Payments` consumes `RequestPayment`, creates a `Payment` record (`Pending`), invokes the simulated payment gateway, records a `PaymentAttempt` (`Succeeded`), transitions `Payment` to `Succeeded`, and stages the `PaymentSucceeded` integration event (`OrderId`, `PaymentId`) in `payments_db.outbox_messages`.
+4. **Confirm Order, Commit Stock & Notify (`Orders` -> `Inventory` & `Notifications`)**:
+   - `Orders` consumes `PaymentSucceeded`, transitions `Order` to `Confirmed`, and atomically stages both the `CommitStock` integration command (`OrderId`) and the `OrderConfirmed` integration event (`OrderId`, `CustomerEmail`, `TotalAmount`) in `orders_db.outbox_messages`.
+   - `Inventory` consumes `CommitStock` and transitions the corresponding `StockReservation` records from `Reserved` to `Committed`.
    - `Notifications` consumes `OrderConfirmed`, checks `notifications_db.inbox_messages`, sends the order confirmation email via `MailKit` to `Papercut SMTP`, and records the dispatch in `notifications_db`.
 
 #### Failure & Compensation Scenarios
 
 | Failure Scenario | System Behaviour & Recovery |
 | :--- | :--- |
-| **1. Insufficient Stock** | `Inventory` cannot fulfil one or more line items in `OrderPlaced`. It rolls back any partial reservation in memory, writes `StockReservationFailed` (`OrderId`, `Reason: InsufficientStock`) to its Outbox, and commits. `Orders` consumes `StockReservationFailed`, transitions `Order` to `Cancelled`, and emits `OrderCancelled`. `Notifications` consumes `OrderCancelled` and sends a cancellation email. No payment is ever attempted. |
-| **2. Payment Declined (Compensating Stock Release)** | Stock was reserved in `Inventory`, but `Payments` declines the charge and emits `PaymentFailed` (`OrderId`, `Reason: CardDeclined`). `Orders` consumes `PaymentFailed`, transitions `Order` to `Cancelled`, and emits `OrderCancelled`. `Inventory` consumes `OrderCancelled` (or `PaymentFailed`), transitions the `StockReservation` for `OrderId` to `Released`, restores `QuantityAvailable`, and emits `StockReleased`. `Notifications` sends a cancellation email. |
-| **3. Duplicate Message Delivery** | RabbitMQ redelivers `OrderPlaced`, `StockReserved`, or `PaymentSucceeded` (e.g. due to a consumer restart before `BasicAck`). The receiving service's Inbox (`(MessageId, ConsumerName)` unique constraint) and aggregate status guards detect the duplicate within the database transaction and acknowledge the message without double-reserving stock, double-charging payment, or sending duplicate state transitions. |
+| **1. Insufficient Stock** | `Inventory` cannot fulfil one or more line items in `ReserveStock`. It rolls back any partial reservation in memory, stages `StockReservationFailed` (`OrderId`, `Reason: InsufficientStock`) in `inventory_db.outbox_messages`, and commits. `Orders` consumes `StockReservationFailed`, transitions `Order` to `Cancelled`, and stages `OrderCancelled` in `orders_db.outbox_messages`. `Notifications` consumes `OrderCancelled` and sends a cancellation email. `RequestPayment` is never issued. |
+| **2. Payment Declined (Compensating Stock Release)** | Stock was reserved in `Inventory`, but `Payments` declines `RequestPayment` and emits `PaymentFailed` (`OrderId`, `Reason: CardDeclined`). `Orders` consumes `PaymentFailed`, transitions `Order` to `Cancelled`, and atomically stages both the `ReleaseStock` integration command (`OrderId`) and the `OrderCancelled` integration event in `orders_db.outbox_messages`. `Inventory` consumes `ReleaseStock`, transitions the `StockReservation` for `OrderId` to `Released`, restores `QuantityAvailable`, and emits `StockReleased`. `Notifications` consumes `OrderCancelled` and sends a cancellation email. |
+| **3. Duplicate Message Delivery** | RabbitMQ redelivers `ReserveStock`, `StockReserved`, `RequestPayment`, or `PaymentSucceeded` (e.g. due to a consumer restart before `BasicAck`). The receiving service's Inbox (`(MessageId, ConsumerName)` unique constraint) and aggregate status guards detect the duplicate within the database transaction and acknowledge the message without double-reserving stock, double-charging payment, or emitting duplicate commands. |
 | **4. RabbitMQ Broker Temporarily Unavailable** | Services continue accepting local work (`Orders` still accepts `POST /api/orders` and commits to `orders_db`). Outbox messages remain queued in PostgreSQL (`ProcessedAtUtc IS NULL`) and are automatically published once `OutboxProcessor` reconnects to RabbitMQ. |
 | **5. Papercut SMTP Temporarily Unavailable** | `Notifications` fails to send via `MailKit`, does not mark the Inbox record as completed, and retries with backoff. If retries are exhausted, the message moves to `notifications.dlq` without affecting the already-`Confirmed` order in `Orders`. |
 
 ---
 
-## 7. Open Architectural Decisions Requiring Human Approval
+## 7. Deferred Architectural Decisions (For Future Tasks)
 
-While the four independent services and database-per-service topology are **Accepted** ([ADR-0001](adr/0001-independent-service-boundaries.md)), the following design proposals require human engineer confirmation before creating `.csproj` files in Task 003:
+All foundational decisions required to begin implementing Service 1 (`Orders`) have been approved ([ADR-0001](adr/0001-independent-service-boundaries.md)). The following items are intentionally deferred to later implementation stages:
 
-1. **Physical Assembly Count per Service (Section 5)**:
-   - **Proposal**: Use **Option B** (one deployable project per service—`Oms.<Service>.Api` / `Oms.Notifications.Worker`—with internal `Domain`, `Application`, `Infrastructure`, and `Api` namespaces enforced by architecture tests and `internal` visibility, plus `.UnitTests` and `.IntegrationTests` projects) rather than 4 separate class libraries per service.
-   - **Decision Needed**: Confirm Option B, or specify if multi-assembly layering (Option A) is preferred despite the `CS1591` public XML documentation overhead.
-2. **Payment Trigger Routing (Event Choreography vs `Orders` Mediation)**:
-   - **Option 1 (Orders-Mediated)**: `Inventory` publishes `StockReserved`; `Orders` consumes it, transitions `Order` to `AwaitingPayment`, and publishes `OrderPaymentRequested` (`OrderId`, `TotalAmount`, `Currency`), which `Payments` consumes. This keeps `Inventory` completely unaware of order monetary totals and keeps `Payments` unaware of `Inventory`.
-   - **Option 2 (Direct Choreography)**: `OrderPlaced` and `StockReserved` carry `TotalAmount` forward so `Payments` triggers directly off `StockReserved`.
-   - **Proposal**: **Option 1 (Orders-Mediated)** for cleaner bounded-context decoupling.
-3. **Contract Packaging When Service 2 Is Introduced**:
-   - **Proposal**: Start with **zero shared projects** when implementing the first service (`Orders`), defining integration event contracts locally within each service, and revisit whether a dependency-free `Oms.Contracts` project is warranted via an ADR only when the second service (`Inventory`) is introduced.
+1. **Integration Contract Packaging (When `Inventory` Is Introduced)**: Reassess whether to retain local message contract records per service or extract a dependency-free `Oms.Contracts` project once the second service is implemented.
+2. **Stale Reservation / Order Timeout Escalation**: Evaluating a scheduled timeout check for orders stuck in `AwaitingStock` or `AwaitingPayment` once basic asynchronous messaging is operational.
+3. **Redis Caching & Kubernetes Deployment Manifests**: Deferred to dedicated later tasks in the project roadmap.

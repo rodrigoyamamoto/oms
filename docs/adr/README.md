@@ -50,4 +50,4 @@ Briefly note viable alternatives and why they were not chosen.
 
 | ADR | Title | Status |
 | :--- | :--- | :--- |
-| [ADR-0001](0001-independent-service-boundaries.md) | Independent Service Boundaries and Database-per-Service Topology | Accepted |
+| [ADR-0001](0001-independent-service-boundaries.md) | Independent Service Boundaries and Initial Solution Architecture | Accepted |

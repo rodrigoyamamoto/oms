@@ -40,10 +40,13 @@ To ensure deep understanding of underlying mechanics and standard .NET platform 
 - **MassTransit** (messaging is implemented directly against `RabbitMQ.Client` with explicit Outbox/Inbox mechanics)
 - **Direct Polly API usage** (resilience must be configured through `Microsoft.Extensions.Http.Resilience` and `Microsoft.Extensions.Resilience` abstractions)
 
-## Architectural Direction & Open Decisions
+## Architectural Direction
 
-- **Accepted Direction ([ADR-0001](docs/adr/0001-independent-service-boundaries.md))**: OMS is designed as four independently deployable services (`Orders`, `Inventory`, `Payments` as ASP.NET Core APIs, and `Notifications` as a Background Worker) with isolated PostgreSQL databases per service, implemented incrementally one service at a time.
-- **Open Architectural Proposals ([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md))**: Physical assembly layering per service, cross-service process coordination strategy, synchronous vs asynchronous boundary rules, and shared contract packaging are documented as proposals awaiting human sign-off prior to project scaffolding.
+- **Accepted Architecture ([ADR-0001](docs/adr/0001-independent-service-boundaries.md) & [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md))**:
+  - Four independently deployable services (`Oms.Orders.Api`, `Oms.Inventory.Api`, `Oms.Payments.Api`, and `Oms.Notifications.Worker`) with isolated PostgreSQL databases per service, implemented incrementally one service at a time.
+  - Single deployable assembly per service with enforced logical layers (`Domain`, `Application`, `Infrastructure`, `Api` / `Worker`) and automated architecture tests (Option B).
+  - Orders-mediated asynchronous process coordination over RabbitMQ separating integration commands (`ReserveStock`, `RequestPayment`, `CommitStock`, `ReleaseStock`) from integration events (`StockReserved`, `PaymentSucceeded`, `OrderConfirmed`, `OrderCancelled`) with explicit EF Core + Transactional Outbox/Inbox boundaries (Option 1).
+  - Zero shared projects initially; integration contract packaging will be reconsidered when `Inventory` is introduced.
 
 ## Documentation Index
 
