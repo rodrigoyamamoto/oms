@@ -5,7 +5,7 @@ This file is the primary entry point for AI coding agents working in the OMS rep
 ## Project State
 
 - The solution root is `Oms.slnx` in the repository root directory.
-- This repository is currently at the **engineering foundation stage**. No application, domain, infrastructure, or test projects exist yet.
+- `Oms.Orders.Api`, `Oms.Orders.UnitTests`, and `Oms.Orders.IntegrationTests` are scaffolded as the first service foundation (`GET /health/live` liveness endpoint and host integration test). No order management domain entities, application handlers, persistence, or messaging infrastructure exist yet.
 - Do not invent or assume undocumented services, packages, or infrastructure.
 
 ## Core Guardrails
