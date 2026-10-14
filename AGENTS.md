@@ -16,7 +16,8 @@ This file is the primary entry point for AI coding agents working in the OMS rep
 4. **Package Management**: All NuGet dependencies must use Central Package Management in `Directory.Packages.props`. Never add packages for features that do not yet exist.
 5. **Change Governance**: Do not silently alter architectural decisions, install dependencies, modify agent instructions, or commit/push to Git without explicit justification and user approval.
 6. **Zero Silent Diagnostic Suppression**: Compiler and analyser warnings are treated as errors across all build configurations (`Debug` and `Release`). Never suppress warnings (`NoWarn`, `WarningsNotAsErrors`, `#pragma warning disable`, `SuppressMessage`), downgrade diagnostic severities, or swallow exceptions to make a build pass without investigating the root cause and obtaining explicit approval.
-7. **Honest Verification**: Never claim that builds, analysers, or tests passed without executing them and observing evidence. Clearly distinguish between executed checks and checks that are not yet applicable (including when `Oms.slnx` contains no C# projects).
+7. **Meaningful, Risk-Based Testing**: Write behaviour-driven tests that protect real domain invariants, transactional atomicity, concurrency, idempotency, Outbox/Inbox reliability, and architectural layer boundaries (see [`docs/TESTING.md`](docs/TESTING.md)). Never write superficial tests merely to inflate coverage metrics, never claim mocked dependencies prove real infrastructure behaviour, and always report which guarantees your tests protect alongside any failure cases left untested.
+8. **Honest Verification**: Never claim that builds, analysers, or tests passed without executing them and observing evidence. Clearly distinguish between executed checks and checks that are not yet applicable (including when `Oms.slnx` contains no C# projects).
 
 ## Reference Documentation
 
