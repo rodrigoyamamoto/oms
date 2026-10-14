@@ -40,9 +40,10 @@ To ensure deep understanding of underlying mechanics and standard .NET platform 
 - **MassTransit** (messaging is implemented directly against `RabbitMQ.Client` with explicit Outbox/Inbox mechanics)
 - **Direct Polly API usage** (resilience must be configured through `Microsoft.Extensions.Http.Resilience` and `Microsoft.Extensions.Resilience` abstractions)
 
-## Open Architectural Decisions
+## Architectural Direction & Open Decisions
 
-The physical service boundaries (for example, modular monolith versus distributed microservices) and runtime deployment topology remain intentionally open architectural decisions to be recorded via Architecture Decision Records (ADRs) before implementation begins.
+- **Accepted Direction ([ADR-0001](docs/adr/0001-independent-service-boundaries.md))**: OMS is designed as four independently deployable services (`Orders`, `Inventory`, `Payments` as ASP.NET Core APIs, and `Notifications` as a Background Worker) with isolated PostgreSQL databases per service, implemented incrementally one service at a time.
+- **Open Architectural Proposals ([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md))**: Physical assembly layering per service, cross-service process coordination strategy, synchronous vs asynchronous boundary rules, and shared contract packaging are documented as proposals awaiting human sign-off prior to project scaffolding.
 
 ## Documentation Index
 
