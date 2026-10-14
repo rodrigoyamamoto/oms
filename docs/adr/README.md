@@ -17,7 +17,7 @@ Create an ADR before implementing changes that affect:
 
 ## ADR Format
 
-Each ADR should be created as `docs/adr/NNNN-short-title-in-kebab-case.md` (for example, `0001-physical-service-boundaries.md`) using the following structure:
+Each ADR should be created as `docs/adr/NNNN-short-title-in-kebab-case.md` (for example, `0001-independent-service-boundaries.md`) using the following structure:
 
 ```markdown
 # ADR NNNN: Title
@@ -50,4 +50,4 @@ Briefly note viable alternatives and why they were not chosen.
 
 | ADR | Title | Status |
 | :--- | :--- | :--- |
-| *None yet* | Physical service boundaries and deployment topology remain open decisions to be recorded prior to feature implementation. | — |
+| [ADR-0001](0001-independent-service-boundaries.md) | Independent Service Boundaries and Database-per-Service Topology | Accepted |
