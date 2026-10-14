@@ -5,8 +5,8 @@
 OMS is an educational Order Management System designed to develop and demonstrate senior-level software engineering competencies in modern .NET 10 distributed SaaS applications.
 
 > **Current Implementation Status**:
-> - **Implemented**: Repository engineering baseline (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`), documentation, and Devin AI agent workflow.
-> - **Planned (Not Yet Implemented)**: All four deployable services (`Orders`, `Inventory`, `Payments`, `Notifications`), `.csproj` assemblies, PostgreSQL databases, RabbitMQ messaging topology, Papercut SMTP integration, Docker Compose orchestration, and the React frontend described below represent the **approved target architecture**. No application code or infrastructure exists yet.
+> - **Implemented**: Repository engineering baseline (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`), documentation, Devin AI agent workflow, and the minimal `Orders` HTTP host scaffold (`Oms.Orders.Api` with `GET /health/live`, `Oms.Orders.UnitTests`, and `Oms.Orders.IntegrationTests`).
+> - **Planned (Not Yet Implemented)**: All business domain models, application handlers, PostgreSQL databases, RabbitMQ messaging topology, Papercut SMTP integration, Docker Compose orchestration, the `Inventory`, `Payments`, and `Notifications` services, and the React frontend described below represent the **approved target architecture**. No business functionality or infrastructure exists yet.
 
 ---
 

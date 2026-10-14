@@ -6,7 +6,7 @@ This document defines the behaviour-driven, risk-based testing strategy, planned
 
 Tests in OMS must provide **meaningful evidence of correctness**, not merely inflate line or branch coverage metrics. Every non-trivial test must have a clear, defensible purpose: identifying the specific business requirement, domain invariant, failure mode, or architectural boundary it protects, and failing reliably if that guarantee is broken.
 
-> **Current Status**: The solution (`Oms.slnx`) currently contains no application or test projects. The practices below govern how tests will be structured, executed, and reviewed as capabilities are implemented incrementally.
+> **Current Status**: The `Orders` service foundation (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, and `Oms.Orders.IntegrationTests` with a host liveness integration test) is scaffolded in `Oms.slnx`. Domain unit tests, architecture tests, and Testcontainers database/messaging integration tests will be added as business capabilities and infrastructure are implemented incrementally.
 
 ---
 
@@ -82,7 +82,7 @@ Every service's `*.UnitTests` project must include automated architecture tests 
 ## Naming and Organisation Conventions
 
 - Test projects must end with `.UnitTests` or `.IntegrationTests` (or `.Tests`), which `Directory.Build.props` automatically configures with `<IsPackable>false</IsPackable>` and `<IsTestProject>true</IsTestProject>`.
-- Test method names must clearly express the scenario, action, and expected business or technical guarantee (for example, `ReserveStock_WhenConcurrentRequestsExceedAvailableQuantity_ShouldAllowOnlyOneReservation`).
+- Test method names must use `PascalCase` without underscores (satisfying Roslyn's `CA1707` rule) and clearly express the scenario, action, and expected business or technical guarantee (for example, `ReserveStockWhenConcurrentRequestsExceedAvailableQuantityShouldAllowOnlyOneReservation`).
 
 ---
 

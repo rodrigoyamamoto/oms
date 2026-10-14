@@ -1,1 +1,11 @@
-<Solution />
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Orders/">
+    <Project Path="src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Orders/">
+    <Project Path="tests/Orders/Oms.Orders.IntegrationTests/Oms.Orders.IntegrationTests.csproj" />
+    <Project Path="tests/Orders/Oms.Orders.UnitTests/Oms.Orders.UnitTests.csproj" />
+  </Folder>
+</Solution>
