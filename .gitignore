@@ -1,0 +1,76 @@
+## .NET Build and Output Artifacts
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+out/
+artifacts/
+publish/
+
+## Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## Test and Coverage Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+TestResults/
+BenchmarkDotNet.Artifacts/
+
+## NuGet & Package Management
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+## SonarQube / Static Analysis
+.sonarqube/
+.scannerwork/
+
+## Node / Frontend (Planned React + TypeScript)
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+.eslintcache
+
+## Environment and Secrets
+.env
+.env.*
+!.env.example
+*.pfx
+*.pem
+*.key
+secrets.json
+
+## AI Agent Local Overrides
+AGENTS.local.md
+CLAUDE.local.md
+.devin/config.local.json
+.devin/mcp_config.local.json
+
+## OS Generated Files
+.DS_Store
+Thumbs.db
+Desktop.ini
