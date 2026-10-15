@@ -5,7 +5,7 @@ This file is the primary entry point for AI coding agents working in the OMS rep
 ## Project State
 
 - The solution root is `Oms.slnx` in the repository root directory.
-- `Oms.Orders.Api` (`GET /health/live` host, `Oms.Orders.Domain` model with `Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, `Result`/`Result<TValue>`/`Error`, and `Oms.Orders.Infrastructure.Persistence` with `OrdersDbContext` and `InitialOrdersPersistence` migration), `Oms.Orders.UnitTests` (domain invariant, Result pattern, and domain visibility tests), and `Oms.Orders.IntegrationTests` (host liveness and Testcontainers PostgreSQL persistence/concurrency/constraint tests) are implemented. No application handlers, business HTTP endpoints, or messaging infrastructure exist yet.
+- `Oms.Orders.Api` (`GET /health/live` host, `Oms.Orders.Domain` model, `Oms.Orders.Application` CQRS handlers `CreateOrderCommand` and `GetOrderByIdQuery` via MediatR and `IOrderStore`, and `Oms.Orders.Infrastructure.Persistence` with `OrdersDbContext`, `EfOrderStore`, and `InitialOrdersPersistence` migration), `Oms.Orders.UnitTests` (domain invariant, Result pattern, and domain/application visibility tests), and `Oms.Orders.IntegrationTests` (host liveness and Testcontainers PostgreSQL persistence/concurrency/constraint/application CQRS tests) are implemented. No business HTTP endpoints or messaging infrastructure exist yet.
 - Do not invent or assume undocumented services, packages, or infrastructure.
 
 ## Core Guardrails

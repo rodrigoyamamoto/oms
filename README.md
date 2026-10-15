@@ -4,9 +4,9 @@ OMS is an educational Order Management System designed to develop and practise s
 
 ## Current Repository Status
 
-This repository currently provides the **engineering foundation, build standards, AI-assisted development workflow, and the `Orders` service host, domain model, and EF Core 10 PostgreSQL persistence (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, `Oms.Orders.IntegrationTests`)** inside `Oms.slnx`.
+This repository currently provides the **engineering foundation, build standards, AI-assisted development workflow, and the `Orders` service host, domain model, MediatR CQRS application layer, and EF Core 10 PostgreSQL persistence (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, `Oms.Orders.IntegrationTests`)** inside `Oms.slnx`.
 
-The `Orders` HTTP host (`GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, `Result`, `Error`), EF Core 10 PostgreSQL persistence (`OrdersDbContext` and `InitialOrdersPersistence` migration), unit tests, and Testcontainers PostgreSQL integration tests are implemented. No application command handlers, business HTTP endpoints, or messaging infrastructure have been implemented yet.
+The `Orders` HTTP host (`GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, `Result`, `Error`), the `Orders` application use cases (`CreateOrderCommand`, `GetOrderByIdQuery`, `OrderDetails`, `IOrderStore`), EF Core 10 PostgreSQL persistence (`OrdersDbContext`, `EfOrderStore`, and `InitialOrdersPersistence` migration), unit tests, and Testcontainers PostgreSQL integration tests are implemented. No business HTTP endpoints or distributed messaging infrastructure have been implemented yet.
 
 ## Planned Capabilities
 

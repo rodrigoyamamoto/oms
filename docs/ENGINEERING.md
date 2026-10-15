@@ -71,6 +71,9 @@ NuGet dependencies are governed centrally through `Directory.Packages.props`:
 - Project files (`.csproj`) must use `<PackageReference Include="Package.Name" />` **without** a `Version` attribute; all versions are declared once via `<PackageVersion Include="Package.Name" Version="x.y.z" />` in `Directory.Packages.props`.
 - **Zero Speculative Packages Rule**: Do not add `<PackageVersion>` entries to `Directory.Packages.props` until a project in the solution actively requires the package.
 - **Supply Chain Hygiene**: When adding new packages in future tasks, prefer stable releases published at least 7 days prior and avoid floating version ranges (`*`).
+- **MediatR In-Process CQRS & Licensing**:
+  - `MediatR` (`14.2.0`) is used strictly for in-process CQRS request/response dispatching (`ISender`). It is registered via `AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>())` without extra DI wrapper packages.
+  - Starting with MediatR v13+, Lucky Penny Software uses a dual/commercial licensing model (`LicenseKey` on `MediatRServiceConfiguration`). Never hardcode or commit a licence key in source code or tracked `appsettings*.json` files; if a licence key is configured in external environments, supply it via user secrets or environment variables. Do not suppress licensing diagnostics in test output.
 
 ## Static Analysis and SonarQube Readiness
 

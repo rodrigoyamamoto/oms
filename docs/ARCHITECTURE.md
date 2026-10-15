@@ -5,8 +5,8 @@
 OMS is an educational Order Management System designed to develop and demonstrate senior-level software engineering competencies in modern .NET 10 distributed SaaS applications.
 
 > **Current Implementation Status**:
-> - **Implemented**: Repository engineering baseline (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`), documentation, Devin AI agent workflow, the minimal `Orders` HTTP host (`Oms.Orders.Api` with `GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, `Result`, `Error`), EF Core 10 + PostgreSQL persistence (`OrdersDbContext`, Fluent API entity configurations, and `InitialOrdersPersistence` migration), domain/visibility unit tests (`Oms.Orders.UnitTests`), and Testcontainers PostgreSQL + host integration tests (`Oms.Orders.IntegrationTests`).
-> - **Planned (Not Yet Implemented)**: Application handlers, business API endpoints, Transactional Outbox/Inbox tables, RabbitMQ messaging topology, Papercut SMTP integration, Docker Compose orchestration, the `Inventory`, `Payments`, and `Notifications` services, and the React frontend described below represent the **approved target architecture**.
+> - **Implemented**: Repository engineering baseline (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`), documentation, Devin AI agent workflow, the minimal `Orders` HTTP host (`Oms.Orders.Api` with `GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, `Result`, `Error`), the `Orders` application CQRS layer (`CreateOrderCommand`, `GetOrderByIdQuery`, `OrderDetails`, `IOrderStore` via MediatR), EF Core 10 + PostgreSQL persistence (`OrdersDbContext`, `EfOrderStore`, Fluent API entity configurations, and `InitialOrdersPersistence` migration), domain/visibility unit tests (`Oms.Orders.UnitTests`), and Testcontainers PostgreSQL + host integration tests (`Oms.Orders.IntegrationTests`).
+> - **Planned (Not Yet Implemented)**: Business HTTP endpoints, Transactional Outbox/Inbox tables, RabbitMQ messaging topology, distributed order reservation/payment coordination, Papercut SMTP integration, Docker Compose orchestration, the `Inventory`, `Payments`, and `Notifications` services, and the React frontend described below represent the **approved target architecture**.
 
 ---
 
@@ -104,11 +104,15 @@ flowchart TB
     - **Optimistic Concurrency via PostgreSQL `xmin`**: `OrderConfiguration` maps PostgreSQL's system `xmin` column (`xid`) as a shadow row-version token (`builder.Property<uint>("xmin").HasColumnName("xmin").HasColumnType("xid").IsRowVersion()`), detecting concurrent conflicting updates via `DbUpdateConcurrencyException` without polluting the `Order` domain model.
     - **Database Safeguards**: `order_items` enforces `CK_order_items_quantity_positive` (`quantity > 0`), `CK_order_items_unit_price_amount_positive` (`unit_price_amount > 0`), `CK_order_items_unit_price_currency_length` (`char_length(unit_price_currency) = 3`), a required cascade foreign key to `orders(id)`, and a composite unique index `UX_order_items_order_id_product_id` on `(order_id, product_id)`.
 - **Minimal Anticipated Domain Model**:
-  - **Implemented Initial Domain Scope (TASK 004)**:
+  - **Implemented Initial Domain & Application Scope (TASK 004–006)**:
     - `Order` (Aggregate Root): `Id` (`Guid` v7), `Status` (`Pending`, `AwaitingPayment`, `Confirmed`, `Cancelled`), `Items` (`IReadOnlyList<OrderItem>`), and computed `Total` (`Money`).
     - `OrderItem` (Child Entity within `Order` aggregate): `Id` (`Guid` v7), `ProductId` (`Guid`), `Quantity` (`int`), `UnitPrice` (`Money`), and computed `LineTotal` (`Money`).
+    - **Application CQRS Use Cases (`Oms.Orders.Application`)**:
+      - `CreateOrderCommand` (`IRequest<Result<Guid>>`): Validates item inputs via `Money.Create` and `Order.Create`, persists the `Pending` `Order` atomically via `IOrderStore.AddAsync`, and returns the newly generated `Order.Id`. *(Note: Distributed `OrderPlaced` / `ReserveStock` Outbox publication is not yet implemented; order creation currently persists a `Pending` order locally.)*
+      - `GetOrderByIdQuery` (`IRequest<Result<OrderDetails>>`): Loads the order via `IOrderStore.GetByIdAsync` (`AsNoTracking` + `Include(o => o.Items)`) and projects an immutable `OrderDetails` read model (`OrderItemDetails`), returning `Orders.InvalidOrderId` for `Guid.Empty` or `Orders.NotFound` when absent without exposing tracked EF Core entities.
+      - **Minimal Persistence Port (`IOrderStore`)**: Allows `Oms.Orders.Application` handlers to persist and query orders without referencing `Microsoft.EntityFrameworkCore` or `OrdersDbContext` directly, implemented by `EfOrderStore` in `Oms.Orders.Infrastructure.Persistence` without generic repository or `IUnitOfWork` ceremony.
   - **Planned Extensions for Persistence & Distributed Coordination (Future Tasks)**:
-    - Additional persistence/audit fields (such as customer metadata, failure reason, timestamps, and optimistic concurrency `RowVersion` / `xmin`) when EF Core persistence and cross-service messaging are introduced.
+    - Additional persistence/audit fields (such as customer metadata, failure reason, timestamps) and Transactional Outbox/Inbox tables when HTTP endpoints and cross-service RabbitMQ messaging are introduced.
 - **Expected External Dependencies**:
   - PostgreSQL (`orders_db` via EF Core), RabbitMQ (`RabbitMQ.Client`), OpenTelemetry.
 - **Initial Communication Requirements**:
