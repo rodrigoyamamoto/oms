@@ -6,7 +6,7 @@ This document defines the behaviour-driven, risk-based testing strategy, planned
 
 Tests in OMS must provide **meaningful evidence of correctness**, not merely inflate line or branch coverage metrics. Every non-trivial test must have a clear, defensible purpose: identifying the specific business requirement, domain invariant, failure mode, or architectural boundary it protects, and failing reliably if that guarantee is broken.
 
-> **Current Status**: The `Orders` service foundation (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, and `Oms.Orders.IntegrationTests` with a host liveness integration test) is scaffolded in `Oms.slnx`. Domain unit tests, architecture tests, and Testcontainers database/messaging integration tests will be added as business capabilities and infrastructure are implemented incrementally.
+> **Current Status**: The `Orders` service foundation (`Oms.Orders.Api`), domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`), unit/architecture tests (`Oms.Orders.UnitTests`), and host liveness integration test (`Oms.Orders.IntegrationTests`) are implemented in `Oms.slnx`. Application-layer tests and Testcontainers database/messaging integration tests will be added as persistence and messaging capabilities are implemented incrementally.
 
 ---
 
@@ -14,7 +14,7 @@ Tests in OMS must provide **meaningful evidence of correctness**, not merely inf
 
 - **Test Framework**: **xUnit**
 - **Integration Environment**: **Testcontainers** (running real PostgreSQL, RabbitMQ, and Papercut SMTP containers—and Redis in a later stage—in Docker for integration tests)
-- **Architecture Enforcement**: Automated reflection/architecture tests inside `*.UnitTests`
+- **Architecture Enforcement**: Automated metadata and IL bytecode inspection tests (`System.Reflection.Metadata`) inside `*.UnitTests`
 - **Execution**: Standard .NET CLI (`dotnet test`)
 
 ---
@@ -47,7 +47,7 @@ Never conflate test categories or claim that a mocked dependency proves real inf
 | Test Category | Scope & Infrastructure | What It Proves | What It Does **Not** Prove |
 | :--- | :--- | :--- | :--- |
 | **Unit Tests** (`*.UnitTests`) | In-process, zero external I/O. Exercises `Domain` aggregates, value objects, invariants, and pure `Application` logic. | Domain rules, state machine transitions, guard clauses, and calculation accuracy. | Database mappings, SQL constraints, transaction atomicity, or RabbitMQ serialisation. |
-| **Architecture Tests** (`*.UnitTests`) | In-process assembly reflection checks over `Oms.<Service>.Api` / `Worker`. | That `Domain` does not reference `Infrastructure`, EF Core, `RabbitMQ.Client`, or web frameworks, and that layer visibility rules hold. | Runtime business correctness. |
+| **Architecture Tests** (`*.UnitTests`) | In-process assembly metadata and IL bytecode (`System.Reflection.Metadata`) checks over `Oms.<Service>.Api` / `Worker`. | That `Domain` (and `Application` once added) signatures, fields, local variables, and IL method bodies do not reference prohibited layers or frameworks, and that layer visibility rules hold. | Runtime business correctness. |
 | **Integration Tests** (`*.IntegrationTests`) | Real PostgreSQL, RabbitMQ, and Papercut SMTP containers via **Testcontainers**. | EF Core mappings, migrations, `CHECK` / unique constraints, optimistic concurrency, atomic Outbox/Inbox persistence, AMQP routing, and HTTP endpoint contracts. | Cross-service multi-process orchestration unless multiple services are under test. |
 | **End-to-End / Workflow Tests** | Multi-service workflow verification across `Orders`, `Inventory`, `Payments`, and `Notifications`. | Complete distributed order fulfilment and compensation flows across real broker and database boundaries. | Exhaustive edge-case permutations (which belong in unit/integration tests). |
 

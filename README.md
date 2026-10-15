@@ -4,9 +4,9 @@ OMS is an educational Order Management System designed to develop and practise s
 
 ## Current Repository Status
 
-This repository currently provides the **engineering foundation, build standards, AI-assisted development workflow, and the initial `Orders` service host scaffold (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, `Oms.Orders.IntegrationTests`)** inside `Oms.slnx`.
+This repository currently provides the **engineering foundation, build standards, AI-assisted development workflow, and the `Orders` service host and domain model (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, `Oms.Orders.IntegrationTests`)** inside `Oms.slnx`.
 
-Only the minimal `Orders` HTTP host (`GET /health/live`) and its host integration test exist. No business domains, application handlers, database schemas, or infrastructure containers have been implemented yet.
+The `Orders` HTTP host (`GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`), unit/architecture tests, and host integration tests are implemented. No application handlers, business HTTP endpoints, database schemas, or infrastructure containers have been implemented yet.
 
 ## Planned Capabilities
 

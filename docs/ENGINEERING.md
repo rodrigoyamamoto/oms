@@ -59,9 +59,10 @@ NuGet dependencies are governed centrally through `Directory.Packages.props`:
   - Never introduce broad `<NoWarn>`, `<WarningsNotAsErrors>`, `#pragma warning disable`, or `[SuppressMessage]` workarounds without investigating the root cause and obtaining explicit human approval.
   - Never swallow exceptions or conceal failed operations.
 - **XML Documentation Policy**:
-  - `Directory.Build.props` sets `<GenerateDocumentationFile>true</GenerateDocumentationFile>` with **no** global `CS1591` suppression.
-  - Generating XML documentation files enables Roslyn and SonarQube analysers to inspect complete symbol metadata during builds.
-  - Because `CS1591` is not suppressed and warnings are treated as errors across all configurations, all publicly visible types and members (`public` / `protected`) must either provide meaningful XML documentation comments (`/// <summary>...`) or use `internal` visibility where types are implementation details not intended as public contracts.
+  - `Directory.Build.props` sets `<GenerateDocumentationFile>true</GenerateDocumentationFile>` for production projects with **no** global `CS1591` suppression.
+  - Generating XML documentation files in production assemblies enables Roslyn and SonarQube analysers to inspect complete symbol metadata during builds.
+  - Because `CS1591` is not suppressed and warnings are treated as errors across all configurations, all publicly visible types and members (`public` / `protected`) in production projects must either provide meaningful XML documentation comments (`/// <summary>...`) or use `internal` visibility where types are implementation details not intended as public contracts.
+  - For test projects (`*.Tests`, `*.UnitTests`, `*.IntegrationTests`), `Directory.Build.props` sets `<GenerateDocumentationFile>false</GenerateDocumentationFile>`. xUnit requires test classes and `[Fact]` / `[Theory]` methods to be `public`, and self-describing test names should not carry redundant XML comment boilerplate solely to satisfy `CS1591`. All other compiler, Roslyn, and code-style analysers remain enforced as errors in test projects.
 
 ### SonarQube Preparation
 
