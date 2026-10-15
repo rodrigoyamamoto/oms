@@ -29,6 +29,23 @@ Formatting and code style are enforced via `.editorconfig` and MSBuild propertie
   - Private and `private protected` fields: `_camelCase` (`warning`)
 - **Language Style**: Prefer `readonly` fields, pattern matching, collection initialisers, and explicit accessibility modifiers for non-interface members.
 
+## Domain Error Handling: Result Pattern vs Exceptions
+
+OMS uses a minimal, internally owned Result Pattern (`Result`, `Result<TValue>`, and `Error`) inside each service's domain layer rather than third-party Result packages (such as `Ardalis.Result`):
+
+- **Why Internally Owned**: Avoids external dependency coupling inside the domain layer, eliminates exposure to third-party API/licensing churn, and keeps the abstraction small, immutable, and free of HTTP-specific status codes or monadic pipeline bloat.
+- **When to Return `Result` / `Result<TValue>` (Expected Business & Validation Failures)**:
+  - Domain factory validation (such as empty order items, invalid quantities, non-positive unit prices, duplicate products, mixed currencies, or invalid currency codes in `Money.Create` / `Order.Create`).
+  - Domain state machine transitions (such as attempting `ConfirmPayment()`, `MarkStockReserved()`, or `Cancel()` from an invalid or terminal `OrderStatus`).
+  - Failed domain operations must never partially mutate aggregate state.
+- **When Exceptions Remain Appropriate (Unexpected Technical & Programming Failures)**:
+  - Guarding programming preconditions and contract violations (`ArgumentNullException` on null collection references, accessing `Result<TValue>.Value` on a failed result, or calling arithmetic operators on an uninitialised `default(Money)` or mismatched currency).
+  - Arithmetic overflow (`checked` decimal calculations) and unexpected runtime or infrastructure failures.
+  - Never catch arbitrary technical exceptions and disguise them as business `Result` failures.
+- **Centralised Domain Error Definitions**:
+  - Domain errors are defined per bounded context in static error classes (such as `OrderErrors` and `MoneyErrors`) with stable, machine-readable codes (`Orders.EmptyItems`, `Orders.DuplicateProduct`, `Orders.InvalidTransition`, `Money.InvalidCurrency`) and human-readable descriptions.
+  - Domain errors remain independent of HTTP status codes; translating domain error codes into HTTP ProblemDetails responses belongs strictly to the API layer.
+
 ## Central Package Management (CPM)
 
 NuGet dependencies are governed centrally through `Directory.Packages.props`:
@@ -59,9 +76,10 @@ NuGet dependencies are governed centrally through `Directory.Packages.props`:
   - Never introduce broad `<NoWarn>`, `<WarningsNotAsErrors>`, `#pragma warning disable`, or `[SuppressMessage]` workarounds without investigating the root cause and obtaining explicit human approval.
   - Never swallow exceptions or conceal failed operations.
 - **XML Documentation Policy**:
-  - `Directory.Build.props` sets `<GenerateDocumentationFile>true</GenerateDocumentationFile>` with **no** global `CS1591` suppression.
-  - Generating XML documentation files enables Roslyn and SonarQube analysers to inspect complete symbol metadata during builds.
-  - Because `CS1591` is not suppressed and warnings are treated as errors across all configurations, all publicly visible types and members (`public` / `protected`) must either provide meaningful XML documentation comments (`/// <summary>...`) or use `internal` visibility where types are implementation details not intended as public contracts.
+  - `Directory.Build.props` sets `<GenerateDocumentationFile>true</GenerateDocumentationFile>` for production projects with **no** global `CS1591` suppression.
+  - Generating XML documentation files in production assemblies enables Roslyn and SonarQube analysers to inspect complete symbol metadata during builds.
+  - Because `CS1591` is not suppressed and warnings are treated as errors across all configurations, all publicly visible types and members (`public` / `protected`) in production projects must either provide meaningful XML documentation comments (`/// <summary>...`) or use `internal` visibility where types are implementation details not intended as public contracts.
+  - For test projects (`*.Tests`, `*.UnitTests`, `*.IntegrationTests`), `Directory.Build.props` sets `<GenerateDocumentationFile>false</GenerateDocumentationFile>`. xUnit requires test classes and `[Fact]` / `[Theory]` methods to be `public`, and self-describing test names should not carry redundant XML comment boilerplate solely to satisfy `CS1591`. All other compiler, Roslyn, and code-style analysers remain enforced as errors in test projects.
 
 ### SonarQube Preparation
 

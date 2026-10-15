@@ -14,4 +14,8 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Orders\Oms.Orders.Api\Oms.Orders.Api.csproj" />
+  </ItemGroup>
+
 </Project>

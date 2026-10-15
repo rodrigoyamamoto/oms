@@ -6,7 +6,7 @@ This document defines the behaviour-driven, risk-based testing strategy, planned
 
 Tests in OMS must provide **meaningful evidence of correctness**, not merely inflate line or branch coverage metrics. Every non-trivial test must have a clear, defensible purpose: identifying the specific business requirement, domain invariant, failure mode, or architectural boundary it protects, and failing reliably if that guarantee is broken.
 
-> **Current Status**: The `Orders` service foundation (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, and `Oms.Orders.IntegrationTests` with a host liveness integration test) is scaffolded in `Oms.slnx`. Domain unit tests, architecture tests, and Testcontainers database/messaging integration tests will be added as business capabilities and infrastructure are implemented incrementally.
+> **Current Status**: The `Orders` service foundation (`Oms.Orders.Api`), domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`), unit/architecture tests (`Oms.Orders.UnitTests`), and host liveness integration test (`Oms.Orders.IntegrationTests`) are implemented in `Oms.slnx`. Application-layer tests and Testcontainers database/messaging integration tests will be added as persistence and messaging capabilities are implemented incrementally.
 
 ---
 
@@ -14,7 +14,7 @@ Tests in OMS must provide **meaningful evidence of correctness**, not merely inf
 
 - **Test Framework**: **xUnit**
 - **Integration Environment**: **Testcontainers** (running real PostgreSQL, RabbitMQ, and Papercut SMTP containers—and Redis in a later stage—in Docker for integration tests)
-- **Architecture Enforcement**: Automated reflection/architecture tests inside `*.UnitTests`
+- **Architecture Verification**: Direct source/dependency inspection during review plus lightweight reflection checks in `*.UnitTests` where they provide concrete value
 - **Execution**: Standard .NET CLI (`dotnet test`)
 
 ---
@@ -47,7 +47,7 @@ Never conflate test categories or claim that a mocked dependency proves real inf
 | Test Category | Scope & Infrastructure | What It Proves | What It Does **Not** Prove |
 | :--- | :--- | :--- | :--- |
 | **Unit Tests** (`*.UnitTests`) | In-process, zero external I/O. Exercises `Domain` aggregates, value objects, invariants, and pure `Application` logic. | Domain rules, state machine transitions, guard clauses, and calculation accuracy. | Database mappings, SQL constraints, transaction atomicity, or RabbitMQ serialisation. |
-| **Architecture Tests** (`*.UnitTests`) | In-process assembly reflection checks over `Oms.<Service>.Api` / `Worker`. | That `Domain` does not reference `Infrastructure`, EF Core, `RabbitMQ.Client`, or web frameworks, and that layer visibility rules hold. | Runtime business correctness. |
+| **Architecture Checks** (`*.UnitTests` & Code Review) | Lightweight reflection assertions over `Oms.<Service>.Api` / `Worker` combined with direct source/dependency inspection. | Concrete metadata rules (such as `Domain` types remaining `internal`). | Complete method-body dependency verification (standard reflection only inspects signatures; method-body dependencies are verified via source review). |
 | **Integration Tests** (`*.IntegrationTests`) | Real PostgreSQL, RabbitMQ, and Papercut SMTP containers via **Testcontainers**. | EF Core mappings, migrations, `CHECK` / unique constraints, optimistic concurrency, atomic Outbox/Inbox persistence, AMQP routing, and HTTP endpoint contracts. | Cross-service multi-process orchestration unless multiple services are under test. |
 | **End-to-End / Workflow Tests** | Multi-service workflow verification across `Orders`, `Inventory`, `Payments`, and `Notifications`. | Complete distributed order fulfilment and compensation flows across real broker and database boundaries. | Exhaustive edge-case permutations (which belong in unit/integration tests). |
 
@@ -57,14 +57,17 @@ Never conflate test categories or claim that a mocked dependency proves real inf
 - **Avoid EF Core InMemory for Persistence Claims**: The EF Core InMemory provider does not enforce relational constraints, foreign keys, PostgreSQL transaction semantics, or concurrency tokens; it must not be used to claim database persistence correctness.
 - **Judicious Use of Mocks and Substitutes**: Mocks/substitutes are tools for isolating pure application orchestration or simulating deterministic external failure modes (such as forcing a simulated payment gateway timeout)—not the default testing strategy. Never mock away the very database transaction, query, or messaging behaviour the test is meant to verify.
 
-### 5. Mandatory Architecture Tests (Enforcing Option B)
+### 5. Lightweight Architecture Discipline (Option B)
 
-Because OMS uses a **single deployable assembly per service** ([ADR-0001](adr/0001-independent-service-boundaries.md)), folder and namespace organisation alone does not prevent a developer or AI agent from referencing EF Core or `RabbitMQ.Client` inside `Domain`.
+Because OMS uses a **single deployable assembly per service** ([ADR-0001](adr/0001-independent-service-boundaries.md)), logical layers (`Domain`, `Application`, `Infrastructure`, `Api` / `Worker`) share one `.csproj`:
 
-Every service's `*.UnitTests` project must include automated architecture tests verifying that:
-- Types in `*.Domain.*` do not depend on `*.Application.*`, `*.Infrastructure.*`, `*.Api.*`, `Microsoft.EntityFrameworkCore`, or `RabbitMQ.Client`.
-- Types in `*.Application.*` do not depend on `*.Infrastructure.*` or `*.Api.*`.
-- Domain, application, and infrastructure implementation types remain `internal` unless explicitly required to be `public`.
+- **Layer Dependency Rules**:
+  - Types in `*.Domain.*` must not depend on `*.Application.*`, `*.Infrastructure.*`, `*.Api.*`, ASP.NET Core, `Microsoft.EntityFrameworkCore`, `MediatR`, or `RabbitMQ.Client`.
+  - Types in `*.Application.*` must not depend on `*.Infrastructure.*` or `*.Api.*`.
+  - Domain, application, and infrastructure implementation types remain `internal` unless explicitly required to be `public`.
+- **Pragmatic Verification & Honest Limitations**:
+  - Keep automated architecture assertions in `*.UnitTests` small and focused on concrete rules that standard reflection can reliably check without custom infrastructure (such as verifying that all `Domain` types are `internal`).
+  - Do **not** build custom IL/bytecode parsers or maintain complex reflection frameworks in test projects. Because standard .NET reflection over type signatures cannot reliably detect every dependency inside method bodies, layer dependency rules are verified through direct source-code and `using`-directive inspection during the mandatory [`docs/QUALITY-GATES.md`](QUALITY-GATES.md) review.
 
 ### 6. Code Coverage as a Diagnostic Metric, Not a Target
 

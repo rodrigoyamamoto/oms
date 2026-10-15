@@ -27,7 +27,10 @@
 | Unit Tests | `dotnet test Oms.slnx` | | |
 | Integration Tests | `dotnet test Oms.slnx` | | |
 
-## Independent Review
+## Independent Review & Engineering Quality Gate
 
+<!-- Summarise the pre-handoff evaluation against docs/QUALITY-GATES.md (Areas A–I), meaningful regression risks tested, independent reviewer verdict (APPROVED / APPROVED WITH NOTES / NOT APPROVED), findings resolved, and any remaining limitations. -->
+
+- [ ] Pre-handoff Engineering Quality Gate ([`docs/QUALITY-GATES.md`](../docs/QUALITY-GATES.md)) completed.
 - [ ] Independent review completed (via `/review-change` or `reviewer` subagent) and confirmed findings resolved.
 - [ ] Human engineer review and approval required before merge.

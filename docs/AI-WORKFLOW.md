@@ -4,19 +4,18 @@
 
 This document defines the collaborative workflow between human engineers, the lead AI agent, and specialised subagents in the OMS repository.
 
-## Standard Collaboration Workflow
+## Standard Collaboration & Quality Gate Workflow
 
-All non-trivial engineering tasks follow this nine-step lifecycle:
+All engineering tasks follow this mandatory lifecycle, integrating the acceptance criteria in [`docs/QUALITY-GATES.md`](QUALITY-GATES.md):
 
-1. **Inspection**: The lead agent inspects the repository state, relevant documentation, and task constraints to understand the problem thoroughly before proposing changes.
-2. **Planning**: The lead agent prepares a concise implementation plan when the task involves multiple steps or architectural trade-offs.
-3. **Research Delegation**: Independent research or discovery tasks may be delegated to read-only subagents (`subagent_explore`) where parallel investigation adds value.
-4. **Implementation Ownership**: One implementation agent owns each overlapping area of code. Overlapping files, shared build configuration, or database migrations are never edited concurrently by multiple agents.
-5. **Automated Verification**: Automated verification is executed against the resulting changes (via `/verify-change`).
-6. **Independent Review**: An independent read-only reviewer (`reviewer` subagent profile or `/review-change`) evaluates the changes without modifying them.
-7. **Resolution**: The lead agent addresses confirmed review findings without expanding task scope.
-8. **Final Verification**: Final verification is executed to confirm all checks pass after corrections.
-9. **Human Review & Approval**: A human engineer reviews and approves the result before changes are finalised or merged.
+1. **Inspection & Planning**: The lead agent inspects the repository state, relevant documentation, and task constraints, preparing a concise implementation plan when appropriate. Independent research tasks may be delegated to read-only subagents (`subagent_explore`).
+2. **Step 1 — Implementation**: One implementation agent owns each overlapping area of code and implements the approved scope.
+3. **Step 2 — Self-Review**: The implementing agent inspects the actual `git diff` against [`docs/QUALITY-GATES.md`](QUALITY-GATES.md) (Areas A–I).
+4. **Step 3 — Behavioural Verification**: Automated verification is executed against the resulting changes (via `/verify-change`), testing both happy paths and failure/edge cases.
+5. **Step 4 — Independent Read-Only Review**: An independent read-only reviewer (`reviewer` subagent profile or `/review-change`) inspects the actual implementation and test code against [`docs/QUALITY-GATES.md`](QUALITY-GATES.md) without modifying files, issuing an objective verdict (`APPROVED`, `APPROVED WITH NOTES`, or `NOT APPROVED`).
+6. **Step 5 — Findings Resolution**: The lead agent resolves confirmed correctness defects, missing requirements, weak tests, architecture violations, and unnecessary complexity without expanding task scope, then re-runs affected verification checks.
+7. **Step 6 — Final Quality Gate**: The lead agent re-evaluates the final `git diff` and verification results on the exact code to be pushed.
+8. **Step 7 — Handoff & Human Review**: The lead agent produces the final handoff report (including the `Engineering Quality Gate` evidence section) and updates the pull request. A human engineer reviews and approves the result before merging.
 
 ## Delegation & Parallelism Rules
 

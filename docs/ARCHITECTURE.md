@@ -5,8 +5,8 @@
 OMS is an educational Order Management System designed to develop and demonstrate senior-level software engineering competencies in modern .NET 10 distributed SaaS applications.
 
 > **Current Implementation Status**:
-> - **Implemented**: Repository engineering baseline (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`), documentation, Devin AI agent workflow, and the minimal `Orders` HTTP host scaffold (`Oms.Orders.Api` with `GET /health/live`, `Oms.Orders.UnitTests`, and `Oms.Orders.IntegrationTests`).
-> - **Planned (Not Yet Implemented)**: All business domain models, application handlers, PostgreSQL databases, RabbitMQ messaging topology, Papercut SMTP integration, Docker Compose orchestration, the `Inventory`, `Payments`, and `Notifications` services, and the React frontend described below represent the **approved target architecture**. No business functionality or infrastructure exists yet.
+> - **Implemented**: Repository engineering baseline (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`), documentation, Devin AI agent workflow, the minimal `Orders` HTTP host (`Oms.Orders.Api` with `GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`), domain/architecture unit tests (`Oms.Orders.UnitTests`), and host integration tests (`Oms.Orders.IntegrationTests`).
+> - **Planned (Not Yet Implemented)**: Application handlers, business API endpoints, PostgreSQL databases, RabbitMQ messaging topology, Papercut SMTP integration, Docker Compose orchestration, the `Inventory`, `Payments`, and `Notifications` services, and the React frontend described below represent the **approved target architecture**.
 
 ---
 
@@ -98,8 +98,11 @@ flowchart TB
 - **Data Ownership (`orders_db`)**:
   - `orders` and `order_items` tables, plus `outbox_messages` and `inbox_messages` tables.
 - **Minimal Anticipated Domain Model**:
-  - `Order` (Aggregate Root): `Id`, `CustomerId`, `CustomerEmail`, `Status`, `TotalAmount`, `Currency`, `FailureReason`, `CreatedAtUtc`, `RowVersion` (optimistic concurrency), and a `1..N` collection of `OrderItem`.
-  - `OrderItem` (Child Entity within `Order` aggregate): `Id`, `OrderId`, `ProductSku`, `Quantity`, `UnitPrice` (snapshotted at order creation).
+  - **Implemented Initial Domain Scope (TASK 004)**:
+    - `Order` (Aggregate Root): `Id` (`Guid` v7), `Status` (`Pending`, `AwaitingPayment`, `Confirmed`, `Cancelled`), `Items` (`IReadOnlyList<OrderItem>`), and computed `Total` (`Money`).
+    - `OrderItem` (Child Entity within `Order` aggregate): `Id` (`Guid` v7), `ProductId` (`Guid`), `Quantity` (`int`), `UnitPrice` (`Money`), and computed `LineTotal` (`Money`).
+  - **Planned Extensions for Persistence & Distributed Coordination (Future Tasks)**:
+    - Additional persistence/audit fields (such as customer metadata, failure reason, timestamps, and optimistic concurrency `RowVersion` / `xmin`) when EF Core persistence and cross-service messaging are introduced.
 - **Expected External Dependencies**:
   - PostgreSQL (`orders_db` via EF Core), RabbitMQ (`RabbitMQ.Client`), OpenTelemetry.
 - **Initial Communication Requirements**:
@@ -197,7 +200,7 @@ In .NET, every `public` or `protected` type across assembly boundaries requires 
 
 | Criterion | Option A (Rejected): 4 Assemblies per Service (`Domain`, `Application`, `Infrastructure`, `Api`) | Option B (Approved): Single Deployable Assembly per Service with Enforced Layer Namespaces |
 | :--- | :--- | :--- |
-| **Compile-Time Dependency Enforcement** | **MSBuild Project References**: `Domain.csproj` physically cannot reference EF Core, MediatR, or `RabbitMQ.Client`. | **Automated Architecture Tests**: Because folder structure alone does not enforce boundaries, layer rules (`Domain` must not reference `Application`, `Infrastructure`, `Api`, EF Core, or `RabbitMQ.Client`; `Application` must not reference `Infrastructure` or `Api`) are strictly enforced via automated architecture tests in `*.UnitTests` (see [`docs/TESTING.md`](TESTING.md)). |
+| **Compile-Time Dependency Enforcement** | **MSBuild Project References**: `Domain.csproj` physically cannot reference EF Core, MediatR, or `RabbitMQ.Client`. | **Source Review & Lightweight Checks**: Layer rules (`Domain` must not reference `Application`, `Infrastructure`, `Api`, EF Core, or `RabbitMQ.Client`; `Application` must not reference `Infrastructure` or `Api`) are enforced via direct source/dependency inspection during [`docs/QUALITY-GATES.md`](QUALITY-GATES.md) review and lightweight visibility checks in `*.UnitTests` (see [`docs/TESTING.md`](TESTING.md)). |
 | **Testability** | High, though requires making internal application/infrastructure types `public` across assembly boundaries. | High: `InternalsVisibleTo` grants `Oms.<Service>.UnitTests` and `Oms.<Service>.IntegrationTests` full access to `internal` domain and application types. |
 | **Maintainability & `CS1591` Impact** | **High Friction**: Because types crossing assembly boundaries must be `public`, every entity, repository interface, command, handler, and DTO must carry `///` XML comments to satisfy `CS1591` under `TreatWarningsAsErrors=true`. | **High Maintainability**: Domain entities, value objects, MediatR handlers, EF Core configurations, and Outbox/Inbox classes remain `internal`. Only genuine public API contracts require XML documentation. |
 | **Build & Solution Complexity** | **Heavy**: 4 services x 4 layers + 8 test projects = **24 `.csproj` files** for a small educational system. | **Minimal & Fast**: 4 deployable service projects + 2 test projects per service = **12 `.csproj` files** total at full completion (and only **3 `.csproj` files** when building the first service). |

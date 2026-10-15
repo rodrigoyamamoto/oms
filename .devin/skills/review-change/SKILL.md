@@ -12,45 +12,23 @@ Perform a rigorous, independent, read-only review of the changes in the OMS repo
 ## Review Mandate
 
 - **Read-Only**: Do not modify files, apply fixes, or approve your own changes.
-- Inspect all modified and newly created files against `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ENGINEERING.md`, `docs/TESTING.md`, and `docs/AI-WORKFLOW.md`.
+- Inspect the actual implementation and test source files (not just task summaries) against [`docs/QUALITY-GATES.md`](../../../docs/QUALITY-GATES.md), `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ENGINEERING.md`, `docs/TESTING.md`, and `docs/AI-WORKFLOW.md`.
 
 ## Evaluation Checklist
 
-Evaluate the changes across all seven required dimensions:
+Evaluate the changes across the quality-gate areas in `docs/QUALITY-GATES.md`:
 
-1. **Correctness**
-   - Are there logic errors, invalid MSBuild/XML/YAML/JSON syntax, broken Markdown links, or inaccurate statements?
-   - Does the documentation accurately describe the current state of the repository without claiming planned features are already implemented?
+1. **Requirements & Scope (Gate A)**: Matches approved scope; respects explicit exclusions; no speculative abstractions or unrequested features.
+2. **Domain Modelling & Result Pattern (Gates B & C)**: Aggregate encapsulation, UUID v7 identity ownership, invariant enforcement, failure atomicity (no partial state mutation on failed operations), `Money` value semantics, `Result`/`Result<TValue>`/`Error` state validity, and centralised transport-independent domain errors.
+3. **Code Design & Maintainability (Gate D)**: Smallest clear design protecting required behaviour; `internal` visibility by default; British English; zero temporary probes or unnecessary wrappers/parsers.
+4. **Dependency & Architecture Discipline (Gate E)**: No unapproved NuGet packages; `Domain` has zero references to `Application`, `Infrastructure`, `Api`, ASP.NET Core, EF Core, `MediatR`, or `RabbitMQ.Client`; honest reporting of lightweight architecture checks.
+5. **Meaningful Testing (Gate F)**: Tests protect real business invariants, boundary values, error codes, and state preservation after failure with genuine regression value (not superficial coverage padding).
+6. **Infrastructure, Engineering Standards & PR Hygiene (Gates G, H & I)**: Applicable infrastructure failure modes covered; zero warnings/errors; zero diagnostic suppressions; clean diff and accurate documentation.
 
-2. **Architecture Compliance**
-   - Do the changes respect the principles in `docs/ARCHITECTURE.md`?
-   - Are prohibited technologies (`.NET Aspire`, `MassTransit`, direct `Polly` API usage) strictly excluded?
-   - Are open architectural decisions (such as physical service boundaries and deployment topology) preserved as open rather than prematurely fixed without an ADR?
+## Output Format & Objective Verdicts
 
-3. **Maintainability**
-   - Are files concise, well-structured, and written in professional British English?
-   - Does `AGENTS.md` remain short and reference authoritative documents rather than duplicating their contents?
+Report findings with exact file paths and line numbers, grouped by severity (`Blocking / High` vs `Medium / Low`), and conclude with one of the three objective verdicts defined in `docs/QUALITY-GATES.md` Section 3:
 
-4. **Security**
-   - Are any secrets, credentials, tokens, or fabricated server URLs hardcoded?
-   - Are `.gitignore` patterns and dependency management settings safe and appropriate?
-
-5. **Test Adequacy**
-   - Are testing expectations and verification procedures realistic for the current project state?
-   - If application code exists, do tests protect meaningful business behaviour, domain invariants, high-risk failure modes (transactional atomicity, concurrency, idempotency, Outbox/Inbox), and single-assembly architectural boundaries rather than superficial coverage targets or over-mocked implementation details?
-   - Are unit tests, architecture tests, and real-infrastructure integration tests (Testcontainers) clearly distinguished without false confidence, and are untested failure scenarios explicitly disclosed?
-
-6. **Unnecessary Complexity**
-   - Have any speculative abstractions, unrequested NuGet packages, extra projects, or unnecessary agent profiles been introduced?
-
-7. **Conflicting Instructions or Configuration**
-   - Are `.editorconfig`, `Directory.Build.props`, `Directory.Packages.props`, `AGENTS.md`, `docs/*.md`, and `.devin/` configurations mutually consistent?
-   - Do skill and subagent frontmatter fields strictly conform to documented Devin CLI properties?
-
-## Output Format
-
-Report findings grouped by severity:
-
-- **Blocking / High**: Must be fixed before task completion.
-- **Medium / Low**: Concrete improvements within task scope.
-- **Verdict**: State clearly whether the changes meet OMS standards or require corrections, citing specific file paths and line numbers for every finding.
+- **`APPROVED`**: Every applicable quality gate passes, all requirements are met, verification is complete, and no known correctness, architecture, testing, or complexity issues remain. (Do not invent speculative notes merely to populate a notes section.)
+- **`APPROVED WITH NOTES`**: Acceptable for the approved scope, with specific, evidenced, non-blocking limitations or intentionally deferred concerns explained clearly.
+- **`NOT APPROVED`**: A requirement is missing, an invariant is unprotected, a correctness/architecture/complexity defect remains, or verification is incomplete.

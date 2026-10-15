@@ -4,9 +4,9 @@ OMS is an educational Order Management System designed to develop and practise s
 
 ## Current Repository Status
 
-This repository currently provides the **engineering foundation, build standards, AI-assisted development workflow, and the initial `Orders` service host scaffold (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, `Oms.Orders.IntegrationTests`)** inside `Oms.slnx`.
+This repository currently provides the **engineering foundation, build standards, AI-assisted development workflow, and the `Orders` service host and domain model (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, `Oms.Orders.IntegrationTests`)** inside `Oms.slnx`.
 
-Only the minimal `Orders` HTTP host (`GET /health/live`) and its host integration test exist. No business domains, application handlers, database schemas, or infrastructure containers have been implemented yet.
+The `Orders` HTTP host (`GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`), unit/architecture tests, and host integration tests are implemented. No application handlers, business HTTP endpoints, database schemas, or infrastructure containers have been implemented yet.
 
 ## Planned Capabilities
 
@@ -52,7 +52,8 @@ To ensure deep understanding of underlying mechanics and standard .NET platform 
 
 - [`AGENTS.md`](AGENTS.md) — Entry point and operating rules for AI coding agents.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Architectural principles, consistency boundaries, resilience, and exclusions.
-- [`docs/ENGINEERING.md`](docs/ENGINEERING.md) — .NET 10 build configuration, coding standards, package management, and static analysis readiness.
+- [`docs/ENGINEERING.md`](docs/ENGINEERING.md) — .NET 10 build configuration, coding standards, Result pattern, package management, and static analysis readiness.
+- [`docs/QUALITY-GATES.md`](docs/QUALITY-GATES.md) — Pre-handoff engineering quality gates, review verdicts, and evidence requirements.
 - [`docs/TESTING.md`](docs/TESTING.md) — Testing strategy, test pyramid expectations, and verification discipline.
 - [`docs/AI-WORKFLOW.md`](docs/AI-WORKFLOW.md) — Agent collaboration workflow, skills, reviewer subagent usage, and third-party skills policy.
 - [`docs/adr/README.md`](docs/adr/README.md) — Architecture Decision Record guidelines and log.
