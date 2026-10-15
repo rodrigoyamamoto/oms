@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Oms.Orders.Application.Abstractions;
 using Oms.Orders.Infrastructure.Persistence;
 
 namespace Oms.Orders.Api;
@@ -22,6 +23,11 @@ public sealed class Program
 
         builder.Services.AddDbContext<OrdersDbContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("OrdersDatabase")));
+
+        builder.Services.AddScoped<IOrderStore, EfOrderStore>();
+
+        builder.Services.AddMediatR(configuration =>
+            configuration.RegisterServicesFromAssemblyContaining<Program>());
 
         builder.Services.AddHealthChecks();
 
