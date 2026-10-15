@@ -79,15 +79,22 @@ To ensure deep understanding of underlying mechanics and standard .NET platform 
 - PowerShell 7+ or Windows PowerShell
 - JetBrains Rider (optional; the API can be run from either Rider or the .NET CLI)
 
-### 1. Create the Local `.env` File for Docker Compose
+### 1. Configure Local PostgreSQL Credentials (`.env` and .NET User Secrets)
 
-Docker Compose reads `.env` (which is gitignored) to configure the local `postgres:17.2-alpine` container on loopback port `127.0.0.1:54329` (avoiding port `5432` conflicts and Windows Hyper-V/WSL2 excluded dynamic port ranges around `55432`):
+Neither `compose.yaml` nor `appsettings*.json` contains database passwords or connection strings. For local development, choose a local password for your PostgreSQL container and configure it in two untracked locations:
 
-```powershell
-Copy-Item -LiteralPath .\.env.example -Destination .\.env
-```
+1. **Docker Compose `.env` file** (gitignored at the repository root):
+   ```powershell
+   $localPgPassword = "YourLocalDevPassword_ChangeMe!"
 
-*(Note: `.env` is used by `docker compose`, **not** read automatically by the .NET application. The .NET API receives its connection string via standard .NET configuration as shown in Step 4.)*
+   (Get-Content -Raw .\.env.example) -replace '<replace_with_local_postgres_password>', $localPgPassword | Set-Content -NoNewline .\.env
+   ```
+   *(Note: `.env` is read by `docker compose` to initialise the `postgres:17.2-alpine` container on loopback port `127.0.0.1:54329`; `.env` is **not** read automatically by the .NET application.)*
+
+2. **.NET User Secrets** (stored outside the repository in `%APPDATA%\Microsoft\UserSecrets\`, automatically loaded by `WebApplication.CreateBuilder` when `ASPNETCORE_ENVIRONMENT=Development` in both the .NET CLI and JetBrains Rider):
+   ```powershell
+   dotnet user-secrets set "ConnectionStrings:OrdersDatabase" "Host=localhost;Port=54329;Database=orders_db;Username=postgres;Password=$localPgPassword" --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj
+   ```
 
 ### 2. Start PostgreSQL and Check Container Health
 
@@ -98,24 +105,18 @@ docker compose ps
 
 Wait a few seconds until `STATUS` shows `Up ... (healthy)`.
 
-### 3. Restore Packages and Local Tools (`dotnet-ef`)
+### 3. Restore Packages, Restore Local Tools (`dotnet-ef`), and Apply Migrations
+
+Because `dotnet-ef` uses the `Oms.Orders.Api` startup project in `Development`, it automatically reads `ConnectionStrings:OrdersDatabase` from .NET User Secrets:
 
 ```powershell
 dotnet restore Oms.slnx
 dotnet tool restore
-```
-
-### 4. Configure the Orders Database Connection String & Apply Migrations
-
-Set the `ConnectionStrings__OrdersDatabase` environment variable in your PowerShell session (matching the password in `.env`) and apply the existing `InitialOrdersPersistence` EF Core migration:
-
-```powershell
-$env:ConnectionStrings__OrdersDatabase = "Host=localhost;Port=54329;Database=orders_db;Username=postgres;Password=change_me_local_dev_only"
 
 dotnet ef database update --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj --startup-project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj
 ```
 
-### 5. Run `Oms.Orders.Api` on `http://localhost:5080`
+### 4. Run `Oms.Orders.Api` on `http://localhost:5080`
 
 #### Option A — From PowerShell (.NET CLI)
 
@@ -123,17 +124,16 @@ dotnet ef database update --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csp
 dotnet run --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj
 ```
 
-`Properties/launchSettings.json` binds the `http` profile to `http://localhost:5080` in the `Development` environment.
+`Properties/launchSettings.json` sets `ASPNETCORE_ENVIRONMENT=Development` and binds `http://localhost:5080`, automatically loading your User Secrets connection string.
 
 #### Option B — From JetBrains Rider
 
 1. Open `Oms.slnx` in JetBrains Rider.
-2. Select the **`Oms.Orders.Api: http`** run configuration (`http://localhost:5080`).
-3. In **Edit Configurations... -> Environment variables**, add:
-   `ConnectionStrings__OrdersDatabase=Host=localhost;Port=54329;Database=orders_db;Username=postgres;Password=change_me_local_dev_only`
+2. Select the **`Oms.Orders.Api: http`** run configuration (`http://localhost:5080`, `ASPNETCORE_ENVIRONMENT=Development`).
+3. Because .NET User Secrets were set in Step 1 (or can be edited via right-clicking `Oms.Orders.Api` in Rider $\rightarrow$ **Tools** $\rightarrow$ **Manage .NET User Secrets**), no credentials need to be typed into Rider run configuration files.
 4. Click **Run** (or **Debug**). You can also execute requests directly from [`src/Orders/Oms.Orders.Api/Oms.Orders.Api.http`](src/Orders/Oms.Orders.Api/Oms.Orders.Api.http) using Rider's built-in HTTP Client.
 
-### 6. Exercise the API from PowerShell
+### 5. Exercise the API from PowerShell
 
 Open a second PowerShell terminal and run:
 
@@ -172,14 +172,14 @@ $order = Invoke-RestMethod -Uri "http://localhost:5080/api/orders/$orderId" -Met
 $order | ConvertTo-Json -Depth 5
 ```
 
-### 7. Verify Persistence Across API Restarts
+### 6. Verify Persistence Across API Restarts
 
 1. Stop the running `Oms.Orders.Api` process (`Ctrl+C` in the API terminal or **Stop** in Rider).
 2. Start `Oms.Orders.Api` again (`dotnet run --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj`).
 3. Re-run `Invoke-RestMethod -Uri "http://localhost:5080/api/orders/$orderId" -Method Get` using the **same `$orderId`**.
 4. Confirm that the exact order and its line items (`totalAmount = 22.125`, `currency = "GBP"`) are returned from the `oms_postgres_data` Docker volume.
 
-### 8. Stopping the Environment Cleanly
+### 7. Stopping the Environment Cleanly
 
 ```powershell
 # Stop the PostgreSQL container while preserving the oms_postgres_data volume (non-destructive)
