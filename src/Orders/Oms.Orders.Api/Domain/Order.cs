@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using Oms.Orders.Domain.Common;
 using Oms.Orders.Domain.Errors;
 
@@ -7,13 +6,16 @@ namespace Oms.Orders.Domain;
 internal sealed class Order
 {
     private readonly List<OrderItem> _items;
-    private readonly ReadOnlyCollection<OrderItem> _readOnlyItems;
+
+    private Order()
+    {
+        _items = [];
+    }
 
     private Order(Guid id, List<OrderItem> items)
     {
         Id = id;
         _items = items;
-        _readOnlyItems = _items.AsReadOnly();
         Status = OrderStatus.Pending;
     }
 
@@ -21,7 +23,7 @@ internal sealed class Order
 
     public OrderStatus Status { get; private set; }
 
-    public IReadOnlyList<OrderItem> Items => _readOnlyItems;
+    public IReadOnlyList<OrderItem> Items => _items.AsReadOnly();
 
     public Money Total
     {

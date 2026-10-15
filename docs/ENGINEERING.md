@@ -46,6 +46,22 @@ OMS uses a minimal, internally owned Result Pattern (`Result`, `Result<TValue>`,
   - Domain errors are defined per bounded context in static error classes (such as `OrderErrors` and `MoneyErrors`) with stable, machine-readable codes (`Orders.EmptyItems`, `Orders.DuplicateProduct`, `Orders.InvalidTransition`, `Money.InvalidCurrency`) and human-readable descriptions.
   - Domain errors remain independent of HTTP status codes; translating domain error codes into HTTP ProblemDetails responses belongs strictly to the API layer.
 
+## EF Core Persistence & Migration Conventions
+
+- **Infrastructure Boundary**: EF Core `DbContext` types, Fluent API `IEntityTypeConfiguration<T>` classes, and migrations live under `Infrastructure/Persistence/` inside the owning service assembly. Domain types must never reference `Microsoft.EntityFrameworkCore` or carry ORM data annotations.
+- **Configuration & Connection Strings**: Database connection strings are bound via standard .NET `IConfiguration` (`ConnectionStrings:OrdersDatabase` in `appsettings.Development.json` or environment variables). Never hardcode credentials or run `Database.Migrate()` / `Database.EnsureCreated()` automatically during normal application startup.
+- **Local Migration Commands** (using the local `dotnet-ef` tool manifest):
+  ```bash
+  # Restore local tools (dotnet-ef)
+  dotnet tool restore
+
+  # Add a new migration for OrdersDbContext
+  dotnet ef migrations add <MigrationName> --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj --startup-project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj --output-dir Infrastructure/Persistence/Migrations
+
+  # Apply migrations to a running local PostgreSQL instance
+  dotnet ef database update --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj --startup-project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj
+  ```
+
 ## Central Package Management (CPM)
 
 NuGet dependencies are governed centrally through `Directory.Packages.props`:
