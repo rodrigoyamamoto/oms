@@ -1,30 +1,13 @@
+using Oms.Orders.Domain.Common;
+using Oms.Orders.Domain.Errors;
+
 namespace Oms.Orders.Domain;
 
 internal sealed class OrderItem
 {
-    internal OrderItem(Guid productId, int quantity, Money unitPrice)
+    private OrderItem(Guid id, Guid productId, int quantity, Money unitPrice)
     {
-        if (productId == Guid.Empty)
-        {
-            throw new ArgumentException("Product identifier cannot be empty.", nameof(productId));
-        }
-
-        if (quantity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(quantity), quantity, "Order item quantity must be greater than zero.");
-        }
-
-        if (string.IsNullOrEmpty(unitPrice.Currency))
-        {
-            throw new ArgumentException("Order item unit price must specify a valid currency.", nameof(unitPrice));
-        }
-
-        if (unitPrice.Amount <= 0m)
-        {
-            throw new ArgumentOutOfRangeException(nameof(unitPrice), unitPrice.Amount, "Order item unit price must be strictly greater than zero.");
-        }
-
-        Id = Guid.CreateVersion7();
+        Id = id;
         ProductId = productId;
         Quantity = quantity;
         UnitPrice = unitPrice;
@@ -39,4 +22,24 @@ internal sealed class OrderItem
     public Money UnitPrice { get; }
 
     public Money LineTotal => UnitPrice.Multiply(Quantity);
+
+    internal static Result<OrderItem> Create(Guid productId, int quantity, Money unitPrice)
+    {
+        if (productId == Guid.Empty)
+        {
+            return Result.Failure<OrderItem>(OrderErrors.InvalidProductId);
+        }
+
+        if (quantity <= 0)
+        {
+            return Result.Failure<OrderItem>(OrderErrors.InvalidQuantity);
+        }
+
+        if (!unitPrice.IsInitialised || unitPrice.Amount <= 0m)
+        {
+            return Result.Failure<OrderItem>(OrderErrors.InvalidUnitPrice);
+        }
+
+        return Result.Success(new OrderItem(Guid.CreateVersion7(), productId, quantity, unitPrice));
+    }
 }

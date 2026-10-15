@@ -341,7 +341,7 @@ public sealed class OrdersDomainArchitectureTests
     private static int GetTwoByteOpCodeOperandSize(byte secondByte) =>
         secondByte switch
         {
-            0x18 => 1,
+            0x18 or 0x19 => 1,
             0x09 or 0x0A or 0x0B or 0x0C or 0x0D or 0x0E => 2,
             0x06 or 0x07 or 0x15 or 0x16 or 0x1C or 0x1D or 0x1E => 4,
             _ => 0,

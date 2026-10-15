@@ -1,4 +1,6 @@
 using System.Globalization;
+using Oms.Orders.Domain.Common;
+using Oms.Orders.Domain.Errors;
 
 namespace Oms.Orders.Domain;
 
@@ -6,23 +8,8 @@ internal readonly record struct Money
 {
     private const int IsoCurrencyCodeLength = 3;
 
-    public Money(decimal amount, string currency)
+    private Money(decimal amount, string normalisedCurrency)
     {
-        if (amount < 0m)
-        {
-            throw new ArgumentOutOfRangeException(nameof(amount), amount, "Monetary amount cannot be negative.");
-        }
-
-        ArgumentException.ThrowIfNullOrWhiteSpace(currency);
-
-        var normalisedCurrency = currency.Trim().ToUpperInvariant();
-        if (!IsValidThreeLetterCurrencyCode(normalisedCurrency))
-        {
-            throw new ArgumentException(
-                "Currency must be a three-letter ASCII alphabetic code (for example, GBP, EUR, or USD).",
-                nameof(currency));
-        }
-
         Amount = amount;
         Currency = normalisedCurrency;
     }
@@ -31,7 +18,36 @@ internal readonly record struct Money
 
     public string Currency { get; }
 
-    public static Money Zero(string currency) => new(0m, currency);
+    public bool IsInitialised => !string.IsNullOrEmpty(Currency);
+
+    public static Result<Money> Create(decimal amount, string? currency)
+    {
+        if (amount < 0m)
+        {
+            return Result.Failure<Money>(MoneyErrors.NegativeAmount);
+        }
+
+        if (string.IsNullOrWhiteSpace(currency))
+        {
+            return Result.Failure<Money>(MoneyErrors.InvalidCurrency);
+        }
+
+        var normalisedCurrency = currency.Trim().ToUpperInvariant();
+        if (!IsValidThreeLetterCurrencyCode(normalisedCurrency))
+        {
+            return Result.Failure<Money>(MoneyErrors.InvalidCurrency);
+        }
+
+        return Result.Success(new Money(amount, normalisedCurrency));
+    }
+
+    public static Money Zero(string currency)
+    {
+        var result = Create(0m, currency);
+        return result.IsSuccess
+            ? result.Value
+            : throw new ArgumentException(result.Error.Message, nameof(currency));
+    }
 
     public Money Add(Money other)
     {
@@ -61,7 +77,7 @@ internal readonly record struct Money
     public static Money operator *(int factor, Money money) => money.Multiply(factor);
 
     public override string ToString() =>
-        string.IsNullOrEmpty(Currency)
+        !IsInitialised
             ? "0 (Uninitialised)"
             : string.Create(CultureInfo.InvariantCulture, $"{Amount:0.00} {Currency}");
 
@@ -85,9 +101,9 @@ internal readonly record struct Money
 
     private void EnsureInitialised()
     {
-        if (string.IsNullOrEmpty(Currency))
+        if (!IsInitialised)
         {
-            throw new InvalidOperationException("Cannot perform monetary operations on an uninitialised Money value.");
+            throw new InvalidOperationException(MoneyErrors.Uninitialised.Message);
         }
     }
 
@@ -95,8 +111,7 @@ internal readonly record struct Money
     {
         if (!string.Equals(Currency, other.Currency, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
-                $"Cannot combine monetary amounts with different currencies ('{Currency}' and '{other.Currency}').");
+            throw new InvalidOperationException(MoneyErrors.CurrencyMismatch(Currency, other.Currency).Message);
         }
     }
 }

@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using Oms.Orders.Domain.Common;
+using Oms.Orders.Domain.Errors;
 
 namespace Oms.Orders.Domain;
 
@@ -35,7 +37,7 @@ internal sealed class Order
         }
     }
 
-    public static Order Create(IEnumerable<OrderItemDraft> items)
+    public static Result<Order> Create(IEnumerable<OrderItemDraft> items)
     {
         ArgumentNullException.ThrowIfNull(items);
 
@@ -45,13 +47,17 @@ internal sealed class Order
 
         foreach (var draft in items)
         {
-            var orderItem = new OrderItem(draft.ProductId, draft.Quantity, draft.UnitPrice);
+            var itemResult = OrderItem.Create(draft.ProductId, draft.Quantity, draft.UnitPrice);
+            if (itemResult.IsFailure)
+            {
+                return Result.Failure<Order>(itemResult.Error);
+            }
+
+            var orderItem = itemResult.Value;
 
             if (!seenProductIds.Add(orderItem.ProductId))
             {
-                throw new ArgumentException(
-                    $"Duplicate product '{orderItem.ProductId}' is not permitted within the same order.",
-                    nameof(items));
+                return Result.Failure<Order>(OrderErrors.DuplicateProduct(orderItem.ProductId));
             }
 
             if (orderCurrency is null)
@@ -60,9 +66,7 @@ internal sealed class Order
             }
             else if (!string.Equals(orderCurrency, orderItem.UnitPrice.Currency, StringComparison.Ordinal))
             {
-                throw new ArgumentException(
-                    $"All order items must share the same currency ('{orderCurrency}' vs '{orderItem.UnitPrice.Currency}').",
-                    nameof(items));
+                return Result.Failure<Order>(OrderErrors.CurrencyMismatch(orderCurrency, orderItem.UnitPrice.Currency));
             }
 
             createdItems.Add(orderItem);
@@ -70,42 +74,42 @@ internal sealed class Order
 
         if (createdItems.Count == 0)
         {
-            throw new ArgumentException("An order must contain at least one item.", nameof(items));
+            return Result.Failure<Order>(OrderErrors.EmptyItems);
         }
 
-        return new Order(Guid.CreateVersion7(), createdItems);
+        return Result.Success(new Order(Guid.CreateVersion7(), createdItems));
     }
 
-    public void MarkStockReserved()
+    public Result MarkStockReserved()
     {
         if (Status != OrderStatus.Pending)
         {
-            throw new InvalidOperationException(
-                $"Cannot mark stock as reserved when the order is in the '{Status}' state.");
+            return Result.Failure(OrderErrors.InvalidTransition(Status, OrderStatus.AwaitingPayment));
         }
 
         Status = OrderStatus.AwaitingPayment;
+        return Result.Success();
     }
 
-    public void ConfirmPayment()
+    public Result ConfirmPayment()
     {
         if (Status != OrderStatus.AwaitingPayment)
         {
-            throw new InvalidOperationException(
-                $"Cannot confirm payment when the order is in the '{Status}' state.");
+            return Result.Failure(OrderErrors.InvalidTransition(Status, OrderStatus.Confirmed));
         }
 
         Status = OrderStatus.Confirmed;
+        return Result.Success();
     }
 
-    public void Cancel()
+    public Result Cancel()
     {
         if (Status is not (OrderStatus.Pending or OrderStatus.AwaitingPayment))
         {
-            throw new InvalidOperationException(
-                $"Cannot cancel an order when it is in the '{Status}' state.");
+            return Result.Failure(OrderErrors.InvalidTransition(Status, OrderStatus.Cancelled));
         }
 
         Status = OrderStatus.Cancelled;
+        return Result.Success();
     }
 }
