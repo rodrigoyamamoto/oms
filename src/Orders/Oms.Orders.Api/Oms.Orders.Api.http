@@ -1,0 +1,31 @@
+@baseUrl = http://localhost:5080
+
+### 1. Liveness Probe
+GET {{baseUrl}}/health/live
+Accept: text/plain
+
+### 2. Create Order (Two Items)
+POST {{baseUrl}}/api/orders
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "productId": "0199b0b1-7040-7890-8abc-0123456789ab",
+      "quantity": 2,
+      "unitPriceAmount": 10.125,
+      "currency": "GBP"
+    },
+    {
+      "productId": "0199b0b1-7040-7890-8abc-0123456789ac",
+      "quantity": 3,
+      "unitPriceAmount": 0.625,
+      "currency": "GBP"
+    }
+  ]
+}
+
+### 3. Get Order By ID (replace with the orderId returned by POST)
+@orderId = 0199b0b1-7040-7890-8abc-0123456789ad
+GET {{baseUrl}}/api/orders/{{orderId}}
+Accept: application/json

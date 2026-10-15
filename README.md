@@ -4,9 +4,19 @@ OMS is an educational Order Management System designed to develop and practise s
 
 ## Current Repository Status
 
-This repository currently provides the **engineering foundation, build standards, AI-assisted development workflow, and the `Orders` service host, domain model, MediatR CQRS application layer, and EF Core 10 PostgreSQL persistence (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, `Oms.Orders.IntegrationTests`)** inside `Oms.slnx`.
+This repository currently provides the **engineering foundation, build standards, AI-assisted development workflow, local Docker Compose PostgreSQL environment, and the runnable `Orders` HTTP API (`Oms.Orders.Api`, `Oms.Orders.UnitTests`, `Oms.Orders.IntegrationTests`)** inside `Oms.slnx`.
 
-The `Orders` HTTP host (`GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, `Result`, `Error`), the `Orders` application use cases (`CreateOrderCommand`, `GetOrderByIdQuery`, `OrderDetails`, `IOrderStore`), EF Core 10 PostgreSQL persistence (`OrdersDbContext`, `EfOrderStore`, and `InitialOrdersPersistence` migration), unit tests, and Testcontainers PostgreSQL integration tests are implemented. No business HTTP endpoints or distributed messaging infrastructure have been implemented yet.
+- **Implemented (`Orders` Service)**:
+  - ASP.NET Core 10 Minimal API (`GET /health/live`, `POST /api/orders`, `GET /api/orders/{id}`) with RFC 9457 ProblemDetails error responses (`code` extension).
+  - Domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, and internally owned `Result`/`Result<TValue>`/`Error`).
+  - MediatR CQRS application layer (`CreateOrderCommand`, `GetOrderByIdQuery`, `OrderDetails`, `IOrderStore`).
+  - EF Core 10 PostgreSQL persistence (`OrdersDbContext`, `EfOrderStore`, and `InitialOrdersPersistence` migration).
+  - Local PostgreSQL Docker Compose setup (`compose.yaml` and `.env.example`).
+  - Unit, visibility, and Testcontainers PostgreSQL + HTTP integration tests.
+- **Not Yet Implemented (Planned for Subsequent Tasks)**:
+  - Authentication and authorisation (this milestone is a local educational setup and is not ready for public internet exposure).
+  - Transactional Outbox/Inbox tables and RabbitMQ distributed messaging (`OrderPlaced` / `ReserveStock`).
+  - `Inventory`, `Payments`, and `Notifications` services, and the React frontend.
 
 ## Planned Capabilities
 
@@ -58,23 +68,131 @@ To ensure deep understanding of underlying mechanics and standard .NET platform 
 - [`docs/AI-WORKFLOW.md`](docs/AI-WORKFLOW.md) — Agent collaboration workflow, skills, reviewer subagent usage, and third-party skills policy.
 - [`docs/adr/README.md`](docs/adr/README.md) — Architecture Decision Record guidelines and log.
 
-## Getting Started
+---
+
+## Running OMS Locally (Windows, PowerShell, JetBrains Rider & Docker Desktop)
 
 ### Prerequisites
 
 - .NET 10 SDK (`10.0.x`)
-- Docker Desktop / Docker Engine (required to run Testcontainers PostgreSQL integration tests)
+- Docker Desktop for Windows (running)
+- PowerShell 7+ or Windows PowerShell
+- JetBrains Rider (optional; the API can be run from either Rider or the .NET CLI)
 
-### Useful Commands
+### 1. Create the Local `.env` File for Docker Compose
 
-```bash
-# Inspect SDK version
-dotnet --info
+Docker Compose reads `.env` (which is gitignored) to configure the local `postgres:17.2-alpine` container on loopback port `127.0.0.1:54329` (avoiding port `5432` conflicts and Windows Hyper-V/WSL2 excluded dynamic port ranges around `55432`):
 
-# Restore packages and local tools (including dotnet-ef)
+```powershell
+Copy-Item -LiteralPath .\.env.example -Destination .\.env
+```
+
+*(Note: `.env` is used by `docker compose`, **not** read automatically by the .NET application. The .NET API receives its connection string via standard .NET configuration as shown in Step 4.)*
+
+### 2. Start PostgreSQL and Check Container Health
+
+```powershell
+docker compose up -d
+docker compose ps
+```
+
+Wait a few seconds until `STATUS` shows `Up ... (healthy)`.
+
+### 3. Restore Packages and Local Tools (`dotnet-ef`)
+
+```powershell
 dotnet restore Oms.slnx
 dotnet tool restore
+```
 
+### 4. Configure the Orders Database Connection String & Apply Migrations
+
+Set the `ConnectionStrings__OrdersDatabase` environment variable in your PowerShell session (matching the password in `.env`) and apply the existing `InitialOrdersPersistence` EF Core migration:
+
+```powershell
+$env:ConnectionStrings__OrdersDatabase = "Host=localhost;Port=54329;Database=orders_db;Username=postgres;Password=change_me_local_dev_only"
+
+dotnet ef database update --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj --startup-project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj
+```
+
+### 5. Run `Oms.Orders.Api` on `http://localhost:5080`
+
+#### Option A — From PowerShell (.NET CLI)
+
+```powershell
+dotnet run --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj
+```
+
+`Properties/launchSettings.json` binds the `http` profile to `http://localhost:5080` in the `Development` environment.
+
+#### Option B — From JetBrains Rider
+
+1. Open `Oms.slnx` in JetBrains Rider.
+2. Select the **`Oms.Orders.Api: http`** run configuration (`http://localhost:5080`).
+3. In **Edit Configurations... -> Environment variables**, add:
+   `ConnectionStrings__OrdersDatabase=Host=localhost;Port=54329;Database=orders_db;Username=postgres;Password=change_me_local_dev_only`
+4. Click **Run** (or **Debug**). You can also execute requests directly from [`src/Orders/Oms.Orders.Api/Oms.Orders.Api.http`](src/Orders/Oms.Orders.Api/Oms.Orders.Api.http) using Rider's built-in HTTP Client.
+
+### 6. Exercise the API from PowerShell
+
+Open a second PowerShell terminal and run:
+
+```powershell
+# 1. Verify the liveness endpoint (200 OK -> Healthy)
+Invoke-RestMethod -Uri "http://localhost:5080/health/live" -Method Get
+
+# 2. Create an Order with two items, different quantities, and 3-decimal prices (201 Created)
+$createOrderBody = @{
+    items = @(
+        @{
+            productId       = "0199b0b1-7040-7890-8abc-0123456789ab"
+            quantity        = 2
+            unitPriceAmount = 10.125
+            currency        = "GBP"
+        },
+        @{
+            productId       = "0199b0b1-7040-7890-8abc-0123456789ac"
+            quantity        = 3
+            unitPriceAmount = 0.625
+            currency        = "GBP"
+        }
+    )
+} | ConvertTo-Json -Depth 4
+
+$createResponse = Invoke-WebRequest -Uri "http://localhost:5080/api/orders" -Method Post -ContentType "application/json" -Body $createOrderBody -UseBasicParsing
+$createResponse.StatusCode
+$createResponse.Headers["Location"]
+
+$createdOrder = $createResponse.Content | ConvertFrom-Json
+$orderId = $createdOrder.orderId
+Write-Output "Created Order ID: $orderId"
+
+# 3. Retrieve the created Order by ID (200 OK)
+$order = Invoke-RestMethod -Uri "http://localhost:5080/api/orders/$orderId" -Method Get
+$order | ConvertTo-Json -Depth 5
+```
+
+### 7. Verify Persistence Across API Restarts
+
+1. Stop the running `Oms.Orders.Api` process (`Ctrl+C` in the API terminal or **Stop** in Rider).
+2. Start `Oms.Orders.Api` again (`dotnet run --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj`).
+3. Re-run `Invoke-RestMethod -Uri "http://localhost:5080/api/orders/$orderId" -Method Get` using the **same `$orderId`**.
+4. Confirm that the exact order and its line items (`totalAmount = 22.125`, `currency = "GBP"`) are returned from the `oms_postgres_data` Docker volume.
+
+### 8. Stopping the Environment Cleanly
+
+```powershell
+# Stop the PostgreSQL container while preserving the oms_postgres_data volume (non-destructive)
+docker compose down
+```
+
+> **Destructive Command Warning**: Running `docker compose down -v` deletes the named `oms_postgres_data` Docker volume and permanently erases all locally persisted orders. Only use `-v` when you intentionally want to wipe the local database and re-apply migrations from scratch.
+
+---
+
+## Build, Format & Test Commands
+
+```bash
 # Build the solution (Debug and Release)
 dotnet build Oms.slnx -c Debug
 dotnet build Oms.slnx -c Release
