@@ -91,8 +91,13 @@ When a task introduces persistence, messaging, HTTP endpoints, or background wor
 - **Persistence**: Explicit transaction boundaries, EF Core entity mappings/materialisation, optimistic concurrency (`xmin`), database constraints (`CHECK` / unique), migrations, and Testcontainers PostgreSQL verification.
 - **Messaging**: Duplicate delivery, Inbox deduplication, bounded retries, Dead-Letter Queue (`*.dlq`) routing, Outbox atomicity, and `BasicAckAsync` ordering after database commit.
 - **HTTP APIs**: Request validation, response status/body semantics, mapping of domain `Error` codes to ProblemDetails, and no leakage of internal stack traces.
-- **Security & Operations**: Zero hardcoded credentials/secrets, safe logging, and explicit resilience/observability configuration where required.
-- **Acceptance Criterion**: Tests and implementation match the real failure modes of the infrastructure introduced in that task.
+- **Security, Secrets & Configuration Handling**:
+  - Inspect `appsettings.json`, `appsettings.*.json`, `compose.yaml`, `.env.example`, `.gitignore`, and the full Git commit history to verify zero passwords, credential-bearing connection strings, API keys, or tokens are tracked.
+  - Ensure `.env` and local credential files are ignored by `.gitignore`, and `.env.example` contains obvious non-working placeholders only (such as `<replace_with_local_postgres_password>`).
+  - Keep container credentials external to `compose.yaml` (using required variable interpolation `${POSTGRES_PASSWORD:?...}`) and use native **.NET User Secrets** (`dotnet user-secrets`, backed by `<UserSecretsId>` in the service `.csproj`) for local API connection strings in `Development`.
+  - Verify connection strings and passwords are never logged, included in exception messages returned to HTTP callers, or printed by startup diagnostics, and that `Production` ProblemDetails responses never expose sensitive infrastructure details.
+  - If a genuine credential was ever committed to Git history, report the exposure immediately and require credential rotation rather than assuming removing it in a later commit is sufficient.
+- **Acceptance Criterion**: Tests, configuration, and implementation match the real failure modes and security boundaries of the infrastructure introduced in that task.
 
 ### H. Engineering Standards
 

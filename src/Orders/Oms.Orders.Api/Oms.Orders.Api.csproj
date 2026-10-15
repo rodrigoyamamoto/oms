@@ -3,6 +3,7 @@
   <PropertyGroup>
     <RootNamespace>Oms.Orders</RootNamespace>
     <AssemblyName>Oms.Orders.Api</AssemblyName>
+    <UserSecretsId>7de2ee89-8a83-4ca7-92bf-c5754921b4a1</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

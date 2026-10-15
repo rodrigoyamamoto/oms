@@ -49,11 +49,17 @@ OMS uses a minimal, internally owned Result Pattern (`Result`, `Result<TValue>`,
 ## EF Core Persistence & Migration Conventions
 
 - **Infrastructure Boundary**: EF Core `DbContext` types, Fluent API `IEntityTypeConfiguration<T>` classes, and migrations live under `Infrastructure/Persistence/` inside the owning service assembly. Domain types must never reference `Microsoft.EntityFrameworkCore` or carry ORM data annotations.
-- **Configuration & Connection Strings**: Database connection strings are bound via standard .NET `IConfiguration` (`ConnectionStrings:OrdersDatabase` in `appsettings.Development.json` or environment variables). Never hardcode credentials or run `Database.Migrate()` / `Database.EnsureCreated()` automatically during normal application startup.
-- **Local Migration Commands** (using the local `dotnet-ef` tool manifest):
+- **Secret-Free Configuration & .NET User Secrets**:
+  - Tracked configuration files (`appsettings.json`, `appsettings.Development.json`, `compose.yaml`, `.env.example`) must never contain passwords, tokens, or credential-bearing connection strings.
+  - During local development (`ASPNETCORE_ENVIRONMENT=Development`), each service uses native **.NET User Secrets** (`<UserSecretsId>` in the `.csproj`) to supply `ConnectionStrings:<Service>Database` automatically to both `dotnet run` / JetBrains Rider and `dotnet ef`, while Docker Compose reads its matching password from the gitignored `.env` file.
+  - Never run `Database.Migrate()` / `Database.EnsureCreated()` automatically during normal application startup, and never log connection strings or passwords.
+- **Local Migration Commands** (using the local `dotnet-ef` tool manifest and .NET User Secrets):
   ```bash
   # Restore local tools (dotnet-ef)
   dotnet tool restore
+
+  # Configure local connection string in .NET User Secrets (outside the Git repository)
+  dotnet user-secrets set "ConnectionStrings:OrdersDatabase" "Host=localhost;Port=54329;Database=orders_db;Username=postgres;Password=<your_local_password>" --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj
 
   # Add a new migration for OrdersDbContext
   dotnet ef migrations add <MigrationName> --project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj --startup-project src/Orders/Oms.Orders.Api/Oms.Orders.Api.csproj --output-dir Infrastructure/Persistence/Migrations

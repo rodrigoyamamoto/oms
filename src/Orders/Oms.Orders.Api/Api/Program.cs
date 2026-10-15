@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Oms.Orders.Api.Endpoints;
 using Oms.Orders.Application.Abstractions;
 using Oms.Orders.Infrastructure.Persistence;
 
@@ -21,6 +22,8 @@ public sealed class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        builder.Services.AddProblemDetails();
+
         builder.Services.AddDbContext<OrdersDbContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("OrdersDatabase")));
 
@@ -33,7 +36,11 @@ public sealed class Program
 
         var app = builder.Build();
 
+        app.UseExceptionHandler();
+        app.UseStatusCodePages();
+
         app.MapHealthChecks("/health/live");
+        app.MapOrdersEndpoints();
 
         app.Run();
     }
