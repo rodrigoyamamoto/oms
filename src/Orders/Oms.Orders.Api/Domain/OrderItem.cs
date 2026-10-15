@@ -5,6 +5,10 @@ namespace Oms.Orders.Domain;
 
 internal sealed class OrderItem
 {
+    private OrderItem()
+    {
+    }
+
     private OrderItem(Guid id, Guid productId, int quantity, Money unitPrice)
     {
         Id = id;

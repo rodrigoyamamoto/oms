@@ -51,14 +51,18 @@ Every implementation task must execute this seven-step sequence in order:
   - **Centralised, Transport-Independent Errors**: Error codes (e.g. `Orders.EmptyItems`, `Orders.InvalidTransition`, `Money.InvalidCurrency`) are stable, defined in domain error classes (`OrderErrors`, `MoneyErrors`), not scattered as inline literals, and free of HTTP status codes.
 - **Acceptance Criterion**: Business failures are explicit, predictable, and cannot be mistaken for success or partially mutate state.
 
-### D. Code Design and Maintainability
+### D. Code Design, Maintainability, and Anti-Pattern Review
 
 - **Checks**:
   - Prefer the smallest design that correctly protects the required behaviour (do not equate fewer lines of code with better engineering if clarity suffers, and do not add abstractions solely for hypothetical future tasks).
-  - Verify every class, struct, interface, and method has a concrete responsibility—no generic repositories, decorative marker interfaces (`IAggregateRoot`), pass-through wrappers, or custom framework/compiler tools.
+  - Verify every class, struct, interface, and method has a concrete responsibility—no generic repositories, Unit-of-Work wrappers around `DbContext`, decorative marker interfaces (`IAggregateRoot`), pass-through wrappers, or custom framework/compiler tools.
   - Restrict visibility (`internal` by default inside service assemblies; `private` constructors where factories enforce invariants).
   - Ensure zero temporary probes, dead code, or obsolete helpers remain in the working tree.
-- **Acceptance Criterion**: The code is direct, idiomatic C# 14, and free of speculative indirection.
+  - **Mandatory Anti-Pattern & Modern Practices Check**: Before committing, explicitly evaluate the actual code against current .NET 10, EF Core 10, Npgsql, and PostgreSQL guidance:
+    1. *Is any implementation a recognised anti-pattern for this use case?* (e.g. generic repository/Unit-of-Work over `DbContext`, weakening domain encapsulation for ORM mapping, indiscriminate entity graph updates, uncontrolled lazy loading, synchronous database I/O in async paths, unnecessary explicit transactions where `SaveChangesAsync` already provides atomicity, or substituting `EnsureCreated()` / EF Core `InMemory` for real PostgreSQL migrations).
+    2. *Is there a simpler, idiomatic .NET 10 / EF Core 10 implementation, or are we duplicating platform capabilities?*
+    3. *Are we relying on outdated guidance or deprecated APIs?* (e.g. obsolete `UseXminAsConcurrencyToken()` instead of `.IsRowVersion()`, or obsolete `PostgreSqlBuilder()` parameterless constructors).
+- **Acceptance Criterion**: The code is direct, idiomatic C# 14 / .NET 10, free of recognised anti-patterns, deprecated APIs, and speculative indirection.
 
 ### E. Dependency and Architecture Discipline
 
@@ -142,7 +146,8 @@ Every task handoff report and pull request update must include a concise **`Engi
 
 1. **Applicable Quality Areas Reviewed**: Which of Gates A–I applied and were checked.
 2. **Design or Architecture Concerns Identified**: Any complexity or boundary issues found and how they were handled.
-3. **Meaningful Regression Risks Tested**: Key invariants, failure paths, and any controlled regression probes executed.
-4. **Commands Executed and Actual Results**: Exact build, format, and test commands with exit codes and test counts on the final commit.
-5. **Independent Review Outcome & Resolution**: The independent reviewer's verdict (`APPROVED`, `APPROVED WITH NOTES`, or `NOT APPROVED`), findings raised, and how confirmed issues were resolved.
-6. **Unexecuted Checks & Remaining Limitations**: Any checks that were not applicable or any risks requiring human attention.
+3. **Anti-Pattern & Modern Practices Review**: Issues found, deprecated APIs or anti-patterns avoided/corrected, and any unresolved concerns.
+4. **Meaningful Regression Risks Tested**: Key invariants, failure paths, and any controlled regression probes executed.
+5. **Commands Executed and Actual Results**: Exact build, format, and test commands with exit codes and test counts on the final commit.
+6. **Independent Review Outcome & Resolution**: The independent reviewer's verdict (`APPROVED`, `APPROVED WITH NOTES`, or `NOT APPROVED`), findings raised, and how confirmed issues were resolved.
+7. **Unexecuted Checks & Remaining Limitations**: Any checks that were not applicable or any risks requiring human attention.

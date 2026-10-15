@@ -1,3 +1,6 @@
+using Microsoft.EntityFrameworkCore;
+using Oms.Orders.Infrastructure.Persistence;
+
 namespace Oms.Orders.Api;
 
 /// <summary>
@@ -16,6 +19,9 @@ public sealed class Program
     public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+
+        builder.Services.AddDbContext<OrdersDbContext>(options =>
+            options.UseNpgsql(builder.Configuration.GetConnectionString("OrdersDatabase")));
 
         builder.Services.AddHealthChecks();
 

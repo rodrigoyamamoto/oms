@@ -5,8 +5,8 @@
 OMS is an educational Order Management System designed to develop and demonstrate senior-level software engineering competencies in modern .NET 10 distributed SaaS applications.
 
 > **Current Implementation Status**:
-> - **Implemented**: Repository engineering baseline (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`), documentation, Devin AI agent workflow, the minimal `Orders` HTTP host (`Oms.Orders.Api` with `GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`), domain/architecture unit tests (`Oms.Orders.UnitTests`), and host integration tests (`Oms.Orders.IntegrationTests`).
-> - **Planned (Not Yet Implemented)**: Application handlers, business API endpoints, PostgreSQL databases, RabbitMQ messaging topology, Papercut SMTP integration, Docker Compose orchestration, the `Inventory`, `Payments`, and `Notifications` services, and the React frontend described below represent the **approved target architecture**.
+> - **Implemented**: Repository engineering baseline (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`), documentation, Devin AI agent workflow, the minimal `Orders` HTTP host (`Oms.Orders.Api` with `GET /health/live`), the `Orders` domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, `Result`, `Error`), EF Core 10 + PostgreSQL persistence (`OrdersDbContext`, Fluent API entity configurations, and `InitialOrdersPersistence` migration), domain/visibility unit tests (`Oms.Orders.UnitTests`), and Testcontainers PostgreSQL + host integration tests (`Oms.Orders.IntegrationTests`).
+> - **Planned (Not Yet Implemented)**: Application handlers, business API endpoints, Transactional Outbox/Inbox tables, RabbitMQ messaging topology, Papercut SMTP integration, Docker Compose orchestration, the `Inventory`, `Payments`, and `Notifications` services, and the React frontend described below represent the **approved target architecture**.
 
 ---
 
@@ -96,7 +96,13 @@ flowchart TB
   - Executing payment authorisations or storing payment gateway audit logs.
   - Formatting or dispatching customer emails.
 - **Data Ownership (`orders_db`)**:
-  - `orders` and `order_items` tables, plus `outbox_messages` and `inbox_messages` tables.
+  - `orders` and `order_items` tables (implemented via EF Core 10 Fluent API in `Oms.Orders.Infrastructure.Persistence`), plus `outbox_messages` and `inbox_messages` tables (planned when asynchronous messaging is introduced):
+    - **Persistence-Ignorant Domain**: `Order`, `OrderItem`, and `Money` live in `Oms.Orders.Domain` with zero EF Core attributes or dependencies. All relational mappings reside in `OrderConfiguration` and `OrderItemConfiguration`.
+    - **Application-Generated UUID v7 Keys**: `Order.Id` and `OrderItem.Id` use `ValueGeneratedNever()` mapped to PostgreSQL `uuid` columns so EF Core never overwrites domain-generated `Guid.CreateVersion7()` identifiers.
+    - **Field-Backed Collection Rehydration**: `Order.Items` exposes `IReadOnlyList<OrderItem>` (`_items.AsReadOnly()`), while EF Core populates the private `_items` backing field via `UsePropertyAccessMode(PropertyAccessMode.Field)`.
+    - **`Money` ComplexProperty Mapping & Precision**: `OrderItem.UnitPrice` is mapped via EF Core 10 `ComplexProperty` to `unit_price_amount` (`numeric` without scale truncation, preserving multi-decimal values such as `10.125m`) and `unit_price_currency` (`character(3)`). Computed properties (`Order.Total` and `OrderItem.LineTotal`) are ignored so derived totals are never duplicated in storage.
+    - **Optimistic Concurrency via PostgreSQL `xmin`**: `OrderConfiguration` maps PostgreSQL's system `xmin` column (`xid`) as a shadow row-version token (`builder.Property<uint>("xmin").HasColumnName("xmin").HasColumnType("xid").IsRowVersion()`), detecting concurrent conflicting updates via `DbUpdateConcurrencyException` without polluting the `Order` domain model.
+    - **Database Safeguards**: `order_items` enforces `CK_order_items_quantity_positive` (`quantity > 0`), `CK_order_items_unit_price_amount_positive` (`unit_price_amount > 0`), `CK_order_items_unit_price_currency_length` (`char_length(unit_price_currency) = 3`), a required cascade foreign key to `orders(id)`, and a composite unique index `UX_order_items_order_id_product_id` on `(order_id, product_id)`.
 - **Minimal Anticipated Domain Model**:
   - **Implemented Initial Domain Scope (TASK 004)**:
     - `Order` (Aggregate Root): `Id` (`Guid` v7), `Status` (`Pending`, `AwaitingPayment`, `Confirmed`, `Cancelled`), `Items` (`IReadOnlyList<OrderItem>`), and computed `Total` (`Money`).

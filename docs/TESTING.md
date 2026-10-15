@@ -6,7 +6,7 @@ This document defines the behaviour-driven, risk-based testing strategy, planned
 
 Tests in OMS must provide **meaningful evidence of correctness**, not merely inflate line or branch coverage metrics. Every non-trivial test must have a clear, defensible purpose: identifying the specific business requirement, domain invariant, failure mode, or architectural boundary it protects, and failing reliably if that guarantee is broken.
 
-> **Current Status**: The `Orders` service foundation (`Oms.Orders.Api`), domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`), unit/architecture tests (`Oms.Orders.UnitTests`), and host liveness integration test (`Oms.Orders.IntegrationTests`) are implemented in `Oms.slnx`. Application-layer tests and Testcontainers database/messaging integration tests will be added as persistence and messaging capabilities are implemented incrementally.
+> **Current Status**: The `Orders` service foundation (`Oms.Orders.Api`), domain model (`Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, `Result`, `Error`), EF Core 10 + PostgreSQL persistence (`OrdersDbContext` and `InitialOrdersPersistence` migration), unit/visibility tests (`Oms.Orders.UnitTests`), and real Testcontainers PostgreSQL + host integration tests (`Oms.Orders.IntegrationTests`) are implemented in `Oms.slnx`. Application-layer tests and RabbitMQ messaging integration tests will be added as capabilities are implemented incrementally.
 
 ---
 
@@ -53,7 +53,7 @@ Never conflate test categories or claim that a mocked dependency proves real inf
 
 ### 4. Real Infrastructure Over In-Memory Substitutes
 
-- **Use PostgreSQL via Testcontainers**: When testing EF Core repositories, migrations, transactions, concurrency tokens (`xmin`), raw SQL, or `FOR UPDATE SKIP LOCKED` Outbox queries, always use a real PostgreSQL container via Testcontainers.
+- **Use PostgreSQL via Testcontainers (Docker Prerequisite)**: When testing EF Core repositories/contexts, migrations, transactions, concurrency tokens (`xmin`), raw SQL, or database constraints, always use a real PostgreSQL container via Testcontainers (pinned to `postgres:17.2-alpine`). A running Docker daemon is required to execute `*.IntegrationTests`; if Docker is unavailable, report the environmental blocker explicitly rather than skipping tests silently or substituting `InMemory`.
 - **Avoid EF Core InMemory for Persistence Claims**: The EF Core InMemory provider does not enforce relational constraints, foreign keys, PostgreSQL transaction semantics, or concurrency tokens; it must not be used to claim database persistence correctness.
 - **Judicious Use of Mocks and Substitutes**: Mocks/substitutes are tools for isolating pure application orchestration or simulating deterministic external failure modes (such as forcing a simulated payment gateway timeout)—not the default testing strategy. Never mock away the very database transaction, query, or messaging behaviour the test is meant to verify.
 

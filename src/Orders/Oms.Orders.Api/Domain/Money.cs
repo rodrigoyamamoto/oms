@@ -8,10 +8,10 @@ internal readonly record struct Money
 {
     private const int IsoCurrencyCodeLength = 3;
 
-    private Money(decimal amount, string normalisedCurrency)
+    private Money(decimal amount, string currency)
     {
         Amount = amount;
-        Currency = normalisedCurrency;
+        Currency = currency;
     }
 
     public decimal Amount { get; }
