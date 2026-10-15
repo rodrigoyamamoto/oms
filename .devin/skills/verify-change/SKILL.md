@@ -11,36 +11,28 @@ triggers:
   - model
 ---
 
-Execute the standard OMS verification procedure for current repository changes.
+Execute the standard OMS verification procedure and pre-handoff quality gate checks defined in [`docs/QUALITY-GATES.md`](../../../docs/QUALITY-GATES.md).
 
 ## Procedure
 
-1. **Identify Changed Files**
-   - Check repository status (`git status --short` and `git diff --stat` if Git is initialised; otherwise inspect the workspace file tree via `glob`).
-   - List all files created, modified, or deleted in the current task.
+1. **Identify Changed Files & Self-Review Diff**
+   - Check repository status (`git status --short` and `git diff --stat`).
+   - Inspect the full `git diff` against `docs/QUALITY-GATES.md` (Areas A–I: scope, domain invariants, Result pattern, code design, dependencies/architecture, meaningful tests, infrastructure, engineering standards, and PR hygiene).
 
 2. **Inspect Solution Composition & Diagnostic Integrity**
    - Read `Oms.slnx`, `Directory.Build.props`, and `Directory.Packages.props`.
-   - Determine whether any `.csproj` application or test projects currently exist in the solution.
-   - Check changed files to ensure no unapproved diagnostic suppressions (`NoWarn`, `WarningsNotAsErrors`, `#pragma warning disable`, `SuppressMessage`) or severity downgrades were introduced to bypass warnings-as-errors.
+   - Check changed files to ensure no unapproved diagnostic suppressions (`NoWarn`, `WarningsNotAsErrors`, `#pragma warning disable`, `SuppressMessage`), severity downgrades, or prohibited layer dependencies were introduced.
 
 3. **Execute Applicable Checks**
-   - **Solution & MSBuild Validation**: Run `dotnet build Oms.slnx` and `dotnet build Oms.slnx -c Release` to verify solution syntax, MSBuild property evaluation (`Directory.Build.props` / `Directory.Packages.props`), and strict warnings-as-errors enforcement across both `Debug` and `Release` configurations. (If `Oms.slnx` contains no `.csproj` projects yet, explicitly note that compiler and analyser enforcement cannot be demonstrated until a C# project is added.)
-   - **Formatting & Code Style**:
-     - If one or more `.csproj` projects exist in `Oms.slnx`, run `dotnet format Oms.slnx --verify-no-changes`.
-     - If `Oms.slnx` contains no projects yet, record that `dotnet format` requires at least one project and verify `.editorconfig` and XML/Markdown syntax directly.
+   - **Restore & Build Validation**: Run `dotnet restore Oms.slnx`, `dotnet build Oms.slnx -c Debug`, and `dotnet build Oms.slnx -c Release` to verify zero warnings and zero errors across both configurations.
+   - **Formatting & Code Style**: Run `dotnet format Oms.slnx --verify-no-changes`.
    - **Automated Tests**:
-     - If test projects exist in `Oms.slnx`, run `dotnet test Oms.slnx -c Release --no-build`.
-     - If no test projects exist yet, explicitly mark tests as **Not Applicable (no test projects in solution)**.
-     - When tests are present, distinguish unit tests, architecture tests, and real-infrastructure integration tests, and summarise which business behaviours/invariants they protect as well as any important failure cases left untested.
+     - Run `dotnet test Oms.slnx -c Release --no-build`.
+     - Distinguish unit tests, lightweight architecture checks, and integration tests, and summarise which business behaviours/invariants they protect as well as any important failure cases or limitations left untested.
 
 4. **Validate Documentation & Configuration Consistency**
    - When documentation or configuration files are modified, verify that all internal Markdown file links resolve to existing files and that XML files (`Oms.slnx`, `Directory.Build.props`, `Directory.Packages.props`) are well-formed.
 
-5. **Report Actual Outcomes**
-   - Present a structured verification table showing:
-     - **Check Name**
-     - **Command / Method Executed**
-     - **Status**: `Passed`, `Failed`, `Not Applicable`, or `Not Executed`
-     - **Evidence**: Exact exit code and relevant command output.
-   - **Strict Rule**: Never report a check as passed without executing it and observing evidence. Always distinguish successful checks from unavailable or unexecuted checks.
+5. **Report Actual Outcomes (`Engineering Quality Gate`)**
+   - Present the verification results and `Engineering Quality Gate` summary required by `docs/QUALITY-GATES.md` Section 4.
+   - **Strict Rule**: Never report a check as passed without executing it on the final code and observing evidence. Always distinguish successful checks from unavailable or unexecuted checks.

@@ -5,7 +5,7 @@ This file is the primary entry point for AI coding agents working in the OMS rep
 ## Project State
 
 - The solution root is `Oms.slnx` in the repository root directory.
-- `Oms.Orders.Api` (`GET /health/live` host plus the `Oms.Orders.Domain` model: `Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, and the internally owned `Result`/`Result<TValue>`/`Error` pattern with `OrderErrors` and `MoneyErrors`), `Oms.Orders.UnitTests` (domain invariant, Result pattern, and IL-level architecture boundary tests), and `Oms.Orders.IntegrationTests` (host liveness integration test) are implemented. No application handlers, persistence, or messaging infrastructure exist yet.
+- `Oms.Orders.Api` (`GET /health/live` host plus the `Oms.Orders.Domain` model: `Order`, `OrderItem`, `OrderItemDraft`, `OrderStatus`, `Money`, and the internally owned `Result`/`Result<TValue>`/`Error` pattern with `OrderErrors` and `MoneyErrors`), `Oms.Orders.UnitTests` (domain invariant, Result pattern, and domain visibility tests), and `Oms.Orders.IntegrationTests` (host liveness integration test) are implemented. No application handlers, persistence, or messaging infrastructure exist yet.
 - Do not invent or assume undocumented services, packages, or infrastructure.
 
 ## Core Guardrails
@@ -16,8 +16,9 @@ This file is the primary entry point for AI coding agents working in the OMS rep
 4. **Package Management**: All NuGet dependencies must use Central Package Management in `Directory.Packages.props`. Never add packages for features that do not yet exist.
 5. **Change Governance**: Do not silently alter architectural decisions, install dependencies, modify agent instructions, or commit/push to Git without explicit justification and user approval.
 6. **Zero Silent Diagnostic Suppression**: Compiler and analyser warnings are treated as errors across all build configurations (`Debug` and `Release`). Never suppress warnings (`NoWarn`, `WarningsNotAsErrors`, `#pragma warning disable`, `SuppressMessage`), downgrade diagnostic severities, or swallow exceptions to make a build pass without investigating the root cause and obtaining explicit approval.
-7. **Meaningful, Risk-Based Testing**: Write behaviour-driven tests that protect real domain invariants, transactional atomicity, concurrency, idempotency, Outbox/Inbox reliability, and architectural layer boundaries (see [`docs/TESTING.md`](docs/TESTING.md)). Never write superficial tests merely to inflate coverage metrics, never claim mocked dependencies prove real infrastructure behaviour, and always report which guarantees your tests protect alongside any failure cases left untested.
-8. **Honest Verification**: Never claim that builds, analysers, or tests passed without executing them and observing evidence. Clearly distinguish between executed checks and checks that are not yet applicable (including when `Oms.slnx` contains no C# projects).
+7. **Meaningful, Risk-Based Testing**: Write behaviour-driven tests that protect real domain invariants, transactional atomicity, concurrency, idempotency, Outbox/Inbox reliability, and architectural boundaries (see [`docs/TESTING.md`](docs/TESTING.md)). Never write superficial tests merely to inflate coverage metrics, never claim mocked dependencies prove real infrastructure behaviour, and always report which guarantees your tests protect alongside any failure cases left untested.
+8. **Mandatory Pre-Handoff Quality Gate**: Before producing a final handoff or updating a pull request, execute the 7-step quality gate sequence in [`docs/QUALITY-GATES.md`](docs/QUALITY-GATES.md) (Implementation -> Self-Review -> Behavioural Verification -> Independent Read-Only Review -> Findings Resolution -> Final Quality Gate -> Handoff with the `Engineering Quality Gate` evidence section).
+9. **Honest Verification**: Never claim that builds, analysers, or tests passed without executing them and observing evidence. Clearly distinguish between executed checks and checks that are not yet applicable.
 
 ## Reference Documentation
 
@@ -25,6 +26,7 @@ Instead of duplicating rules here, consult the authoritative documents below:
 
 - **Architecture & Boundaries**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **Engineering & Build Standards**: [`docs/ENGINEERING.md`](docs/ENGINEERING.md)
+- **Engineering Quality Gates**: [`docs/QUALITY-GATES.md`](docs/QUALITY-GATES.md)
 - **Testing & Verification Expectations**: [`docs/TESTING.md`](docs/TESTING.md)
 - **Agent Collaboration, Skills & Review Workflow**: [`docs/AI-WORKFLOW.md`](docs/AI-WORKFLOW.md)
 - **Architecture Decision Records (ADRs)**: [`docs/adr/README.md`](docs/adr/README.md)

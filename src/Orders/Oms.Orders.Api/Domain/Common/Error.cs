@@ -2,7 +2,11 @@ namespace Oms.Orders.Domain.Common;
 
 internal readonly record struct Error
 {
-    internal static readonly Error None = new(string.Empty, string.Empty, isNone: true);
+    public Error()
+    {
+        Code = string.Empty;
+        Message = string.Empty;
+    }
 
     public Error(string code, string message)
     {
@@ -13,12 +17,7 @@ internal readonly record struct Error
         Message = message;
     }
 
-    private Error(string code, string message, bool isNone)
-    {
-        _ = isNone;
-        Code = code;
-        Message = message;
-    }
+    public static Error None => new();
 
     public string Code { get; }
 
